@@ -424,37 +424,71 @@ def report():
 
 
 @report.command(name="weekly")
-def report_weekly():
+@click.option("--weeks", "-w", default=1, help="Weeks back to report")
+@click.option("--save", "-s", is_flag=True, help="Save to reports/ directory")
+def report_weekly(weeks, save):
     """Generate weekly digest of new and updated tools."""
-    console.print("[yellow]Weekly report not yet implemented[/yellow]")
+    from src.reporters import generate_weekly_digest, save_report
+
+    db = get_db()
+
+    console.print(f"[bold blue]Generating weekly digest...[/bold blue]")
+
+    report = generate_weekly_digest(db, weeks_back=weeks)
+
+    if save:
+        from datetime import datetime
+        filename = f"weekly-digest-{datetime.now().strftime('%Y-%m-%d')}.md"
+        path = save_report(report, filename)
+        console.print(f"[green]✓[/green] Saved to {path}")
+    else:
+        console.print()
+        console.print(report)
 
 
 @report.command(name="changelog")
 @click.option("--days", "-d", default=7, help="Days of history to include")
-def report_changelog(days):
+@click.option("--save", "-s", is_flag=True, help="Save to reports/ directory")
+def report_changelog(days, save):
     """Generate changelog of recent updates."""
+    from src.reporters import generate_changelog, save_report
+
     db = get_db()
-    changes = db.get_recent_changes(days=days)
 
-    if not changes:
-        console.print(f"[green]No changes in the last {days} days[/green]")
-        return
+    console.print(f"[bold blue]Generating changelog...[/bold blue]")
 
-    table = Table(title=f"Changes (last {days} days)", show_header=True)
-    table.add_column("Date", style="dim")
-    table.add_column("Tool")
-    table.add_column("Change")
-    table.add_column("Description")
+    report = generate_changelog(db, days=days)
 
-    for change in changes:
-        table.add_row(
-            change["detected_at"][:10],
-            change["tool_name"],
-            change["change_type"],
-            change["description"][:50] + "..." if len(change["description"]) > 50 else change["description"]
-        )
+    if save:
+        from datetime import datetime
+        filename = f"changelog-{datetime.now().strftime('%Y-%m-%d')}.md"
+        path = save_report(report, filename)
+        console.print(f"[green]✓[/green] Saved to {path}")
+    else:
+        console.print()
+        console.print(report)
 
-    console.print(table)
+
+@report.command(name="index")
+@click.option("--save", "-s", is_flag=True, help="Save to reports/ directory")
+def report_index(save):
+    """Generate index of all approved tools."""
+    from src.reporters import generate_tools_index, save_report
+
+    db = get_db()
+
+    console.print(f"[bold blue]Generating tools index...[/bold blue]")
+
+    report = generate_tools_index(db)
+
+    if save:
+        from datetime import datetime
+        filename = f"tools-index-{datetime.now().strftime('%Y-%m-%d')}.md"
+        path = save_report(report, filename)
+        console.print(f"[green]✓[/green] Saved to {path}")
+    else:
+        console.print()
+        console.print(report)
 
 
 @main.command()

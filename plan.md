@@ -175,19 +175,26 @@ Monitor approved tools for changes.
 Generate digests and summaries.
 
 ### 6.1 Report Framework
-- [ ] Define report templates (Markdown, HTML)
-- [ ] Implement diff-based change detection
-- [ ] Group by new/updated/news
+- [x] Define Markdown report templates
+- [x] Save reports to reports/ directory
+- [x] Group by date and category
 
 ### 6.2 Weekly Digest
-- [ ] Summarize new approved tools
-- [ ] Highlight significant updates
-- [ ] Include source attribution
+- [x] Summarize new approved tools
+- [x] Show updates detected
+- [x] Include claims for each tool
+- [x] Configurable time range (--weeks)
 
 ### 6.3 Changelog Report
-- [ ] List recent changes to all tracked tools
-- [ ] Filter by date range
-- [ ] Export to Markdown
+- [x] List recent changes to all tracked tools
+- [x] Filter by date range (--days)
+- [x] Export to Markdown (--save)
+- [x] Emoji icons for change types
+
+### 6.4 Tools Index
+- [x] Generate index of approved tools
+- [x] Group by category
+- [x] Include URLs and descriptions
 
 ---
 
