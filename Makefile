@@ -1,4 +1,4 @@
-.PHONY: help install install-dev setup dev backend frontend cli clean lint format test build db-init db-reset db-migrate db-migrate-status db-migrate-rollback db-migrate-create docker-build docker-run deploy deploy-first-time
+.PHONY: help install install-dev setup dev backend frontend cli clean lint format test quality-report build db-init db-reset db-migrate db-migrate-status db-migrate-rollback db-migrate-create docker-build docker-run deploy deploy-first-time
 
 # Default target
 help:
@@ -26,9 +26,10 @@ help:
 	@echo "  make db-migrate-create   Create new migration (NAME=name)"
 	@echo ""
 	@echo "Quality:"
-	@echo "  make lint         Run linters"
-	@echo "  make format       Format code"
-	@echo "  make test         Run tests"
+	@echo "  make lint           Run linters"
+	@echo "  make format         Format code"
+	@echo "  make test           Run tests"
+	@echo "  make quality-report Full quality report (lint, security, coverage, complexity)"
 	@echo ""
 	@echo "Build & Deploy:"
 	@echo "  make build             Build frontend for production"
@@ -103,6 +104,10 @@ format:
 
 test:
 	pytest tests/ -v
+
+quality-report:
+	@echo "Generating comprehensive quality report..."
+	python scripts/quality_report.py
 
 # Build
 build:

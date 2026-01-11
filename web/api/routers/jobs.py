@@ -8,11 +8,11 @@ import uuid
 from datetime import datetime
 from enum import Enum
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 
-from web.api.deps import get_db, get_current_user
-
+from web.api.deps import get_current_user, get_db
 
 router = APIRouter()
 

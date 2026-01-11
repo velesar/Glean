@@ -9,18 +9,17 @@ relevant content about AI sales tools.
 No API authentication required - just configure feed URLs.
 """
 
-import httpx
-from datetime import datetime, timedelta
-from typing import Optional
-import xml.etree.ElementTree as ET
 import html
 import re
+from datetime import datetime, timedelta
+from typing import Optional
+from xml.etree.ElementTree import Element  # noqa: S405 - used for type hints only
 
-from src.scouts.base import (
-    Scout, Discovery, is_relevant, extract_urls, rate_limit
-)
+import defusedxml.ElementTree as ET  # noqa: N817
+import httpx
+
 from src.database import Database
-
+from src.scouts.base import Discovery, Scout, extract_urls, is_relevant, rate_limit
 
 # Default feeds to monitor
 DEFAULT_FEEDS = [
@@ -170,7 +169,7 @@ class RSSScout(Scout):
 
         return items
 
-    def _parse_rss(self, root: ET.Element) -> list[dict]:
+    def _parse_rss(self, root: Element) -> list[dict]:
         """Parse RSS 2.0 format."""
         items = []
 
@@ -193,7 +192,7 @@ class RSSScout(Scout):
 
         return items
 
-    def _parse_atom(self, root: ET.Element) -> list[dict]:
+    def _parse_atom(self, root: Element) -> list[dict]:
         """Parse Atom format."""
         items = []
 
@@ -237,14 +236,14 @@ class RSSScout(Scout):
 
         return items
 
-    def _get_text(self, element: ET.Element, tag: str) -> Optional[str]:
+    def _get_text(self, element: Element, tag: str) -> Optional[str]:
         """Get text content of a child element."""
         child = element.find(tag)
         if child is not None and child.text:
             return child.text.strip()
         return None
 
-    def _get_text_ns(self, element: ET.Element, path: str,
+    def _get_text_ns(self, element: Element, path: str,
                      ns: dict) -> Optional[str]:
         """Get text with namespace handling."""
         # Try with namespace prefix

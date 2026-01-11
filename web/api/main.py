@@ -6,14 +6,14 @@ FastAPI backend for the Glean web interface.
 
 import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
 from pathlib import Path
 
-from web.api.deps import init_db, close_db
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
+from web.api.deps import close_db, init_db
 
 # Check if running in production (static files exist)
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend" / "dist"
@@ -69,7 +69,7 @@ app.add_middleware(
 )
 
 # Import and include routers after app is created
-from web.api.routers import auth, tools, jobs, reports, stats, settings
+from web.api.routers import auth, jobs, reports, settings, stats, tools  # noqa: E402
 
 # Auth routes (public)
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])

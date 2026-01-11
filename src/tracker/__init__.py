@@ -5,9 +5,9 @@ Monitor approved tools for changes and updates.
 """
 
 from src.tracker.tracker import (
-    UpdateTracker,
-    PageSnapshot,
     DetectedChange,
+    PageSnapshot,
+    UpdateTracker,
     run_update_check,
 )
 

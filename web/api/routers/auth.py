@@ -4,18 +4,19 @@ Authentication Router
 Endpoints for user registration, login, and profile management.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, EmailStr
 from typing import Optional
 
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, EmailStr
+
 from src.database import Database
-from web.api.deps import get_db, get_current_user
 from web.api.auth import (
+    Token,
+    create_access_token,
     hash_password,
     verify_password,
-    create_access_token,
-    Token,
 )
+from web.api.deps import get_current_user, get_db
 
 router = APIRouter()
 

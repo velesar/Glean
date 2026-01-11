@@ -4,12 +4,13 @@ Settings Router
 Endpoints for managing user settings and API credentials.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
 from typing import Optional
 
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+
 from src.database import Database
-from web.api.deps import get_db, get_current_user
+from web.api.deps import get_current_user, get_db
 
 router = APIRouter()
 

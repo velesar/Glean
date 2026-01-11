@@ -9,16 +9,13 @@ Supports multiple search providers:
 3. Demo mode (sample data for testing)
 """
 
-import httpx
-from datetime import datetime
 from typing import Optional
 from urllib.parse import urlparse
 
-from src.scouts.base import (
-    Scout, Discovery, is_relevant, extract_urls, rate_limit
-)
-from src.database import Database
+import httpx
 
+from src.database import Database
+from src.scouts.base import Discovery, Scout, extract_urls, is_relevant, rate_limit
 
 # Default search queries for finding AI sales tools
 DEFAULT_SEARCH_QUERIES = [

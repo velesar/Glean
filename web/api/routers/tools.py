@@ -4,12 +4,12 @@ Tools Router
 CRUD operations for tools.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
 from typing import Optional
 
-from web.api.deps import get_db, get_current_user
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 
+from web.api.deps import get_current_user, get_db
 
 router = APIRouter()
 

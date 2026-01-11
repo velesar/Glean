@@ -8,15 +8,13 @@ NOTE: Product Hunt API requires OAuth authentication. This scout supports:
 2. Demo mode (uses sample data for testing the pipeline)
 """
 
-import httpx
 from datetime import datetime, timedelta
 from typing import Optional
 
-from src.scouts.base import (
-    Scout, Discovery, is_relevant, extract_urls, rate_limit
-)
-from src.database import Database
+import httpx
 
+from src.database import Database
+from src.scouts.base import Discovery, Scout
 
 # Categories and topics to search
 DEFAULT_TOPICS = [

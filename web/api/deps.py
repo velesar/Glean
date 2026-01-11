@@ -5,8 +5,9 @@ Shared dependencies for API routers.
 """
 
 from typing import Optional
+
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from src.database import Database
 from web.api.auth import decode_access_token
