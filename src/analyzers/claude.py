@@ -6,7 +6,6 @@ Uses Claude API to extract tools and claims from discoveries.
 
 import json
 import re
-from typing import Optional
 
 try:
     import anthropic
@@ -15,11 +14,14 @@ except ImportError:
     HAS_ANTHROPIC = False
 
 from src.analyzers.base import (
-    Analyzer, AnalysisResult, ExtractedTool, ExtractedClaim,
-    TOOL_CATEGORIES, CLAIM_TYPES
+    CLAIM_TYPES,
+    TOOL_CATEGORIES,
+    AnalysisResult,
+    Analyzer,
+    ExtractedClaim,
+    ExtractedTool,
 )
 from src.database import Database
-
 
 EXTRACTION_PROMPT = '''You are analyzing a social media post/comment about AI sales tools.
 Extract any AI/software tools mentioned and claims made about them.

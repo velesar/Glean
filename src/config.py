@@ -7,8 +7,8 @@ Load and manage configuration from config.yaml.
 import os
 from pathlib import Path
 from typing import Any
-import yaml
 
+import yaml
 
 DEFAULT_CONFIG = {
     "database": {

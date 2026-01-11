@@ -6,13 +6,11 @@ Tracks applied migrations and supports up/down migrations.
 """
 
 import importlib.util
-import os
 import re
 import sqlite3
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
-
 
 MIGRATIONS_DIR = Path(__file__).parent.parent / "db" / "migrations"
 MIGRATIONS_TABLE = "_migrations"
@@ -60,8 +58,9 @@ class Migrator:
         """Get list of applied migration names."""
         self.init_migrations_table()
         conn = self.connect()
+        # MIGRATIONS_TABLE is a constant, not user input - safe from SQL injection
         rows = conn.execute(
-            f"SELECT name FROM {MIGRATIONS_TABLE} ORDER BY id"
+            f"SELECT name FROM {MIGRATIONS_TABLE} ORDER BY id"  # nosec B608
         ).fetchall()
         return [row["name"] for row in rows]
 
@@ -139,8 +138,9 @@ class Migrator:
 
         for name in pending:
             self.run_migration(name, "up")
+            # MIGRATIONS_TABLE is a constant - safe from SQL injection
             conn.execute(
-                f"INSERT INTO {MIGRATIONS_TABLE} (name) VALUES (?)",
+                f"INSERT INTO {MIGRATIONS_TABLE} (name) VALUES (?)",  # nosec B608
                 (name,)
             )
             conn.commit()
@@ -167,8 +167,9 @@ class Migrator:
 
         for name in to_rollback:
             self.run_migration(name, "down")
+            # MIGRATIONS_TABLE is a constant - safe from SQL injection
             conn.execute(
-                f"DELETE FROM {MIGRATIONS_TABLE} WHERE name = ?",
+                f"DELETE FROM {MIGRATIONS_TABLE} WHERE name = ?",  # nosec B608
                 (name,)
             )
             conn.commit()

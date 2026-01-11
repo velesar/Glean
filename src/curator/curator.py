@@ -7,9 +7,9 @@ Orchestrates curation: scoring, deduplication, and queue management.
 from dataclasses import dataclass
 from typing import Optional
 
+from src.curator.dedup import run_deduplication
+from src.curator.scorer import ScoringResult, score_tool
 from src.database import Database
-from src.curator.scorer import score_tool, ScoringResult
-from src.curator.dedup import run_deduplication, DuplicateGroup
 
 
 @dataclass

@@ -7,9 +7,7 @@ Pipeline statistics and dashboard data.
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
-from web.api.deps import get_db, get_current_user
-from src.database import Database
-
+from web.api.deps import get_current_user, get_db
 
 router = APIRouter()
 

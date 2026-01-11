@@ -5,14 +5,15 @@ Glean CLI
 Command-line interface for the Glean intelligence gathering system.
 """
 
-import click
 from pathlib import Path
-from rich.console import Console
-from rich.table import Table
-from rich.panel import Panel
 
-from src.database import Database
+import click
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+
 from src.config import load_config
+from src.database import Database
 
 console = Console()
 
@@ -58,8 +59,8 @@ def status():
 
     try:
         stats = db.get_pipeline_stats()
-    except Exception as e:
-        console.print(f"[red]Error:[/red] Database not initialized. Run 'glean init' first.")
+    except Exception:
+        console.print("[red]Error:[/red] Database not initialized. Run 'glean init' first.")
         return
 
     # Pipeline status table
@@ -114,8 +115,8 @@ def scout_reddit(subreddit, limit, no_comments, demo):
 
     Requires Reddit API credentials in config.yaml, or use --demo for testing.
     """
-    from src.scouts.reddit import run_reddit_scout
     from src.config import load_config
+    from src.scouts.reddit import run_reddit_scout
 
     db = get_db()
     db.init_schema()  # Ensure DB is ready
@@ -159,8 +160,8 @@ def scout_twitter(query, limit, demo):
 
     Requires Twitter API Bearer token in config.yaml, or use --demo for testing.
     """
-    from src.scouts.twitter import run_twitter_scout
     from src.config import load_config
+    from src.scouts.twitter import run_twitter_scout
 
     db = get_db()
     db.init_schema()
@@ -200,8 +201,8 @@ def scout_producthunt(days, min_votes, demo):
 
     Requires Product Hunt API credentials in config.yaml, or use --demo for testing.
     """
-    from src.scouts.producthunt import run_producthunt_scout
     from src.config import load_config
+    from src.scouts.producthunt import run_producthunt_scout
 
     db = get_db()
     db.init_schema()
@@ -241,8 +242,8 @@ def scout_web(query, results, demo):
 
     Requires SerpAPI or Google Custom Search credentials, or use --demo for testing.
     """
-    from src.scouts.websearch import run_websearch_scout
     from src.config import load_config
+    from src.scouts.websearch import run_websearch_scout
 
     db = get_db()
     db.init_schema()
@@ -351,7 +352,7 @@ def analyze(limit, mock):
     Uses Claude API by default. Use --mock for testing without API.
     """
     from src.analyzers import run_analyzer
-    from src.config import load_config, get_api_key
+    from src.config import get_api_key, load_config
 
     db = get_db()
     discoveries = db.get_unprocessed_discoveries(limit=limit)
@@ -387,7 +388,7 @@ def analyze(limit, mock):
         result = run_analyzer(db, config, use_mock=mock)
 
         console.print()
-        console.print(f"[green]✓[/green] Analysis complete:")
+        console.print("[green]✓[/green] Analysis complete:")
         console.print(f"    Processed: {result['processed']} discoveries")
         console.print(f"    Tools extracted: {result['tools_extracted']}")
         console.print(f"    Claims extracted: {result['claims_extracted']}")
@@ -404,7 +405,7 @@ def analyze(limit, mock):
 @click.option("--max-queue", default=50, help="Max tools in review queue")
 def curate(min_score, no_merge, max_queue):
     """Run AI curation: score tools, deduplicate, and build review queue."""
-    from src.curator import run_curation, get_scoring_details
+    from src.curator import run_curation
 
     db = get_db()
 
@@ -426,7 +427,7 @@ def curate(min_score, no_merge, max_queue):
         max_review_queue=max_queue
     )
 
-    console.print(f"[green]✓[/green] Curation complete:")
+    console.print("[green]✓[/green] Curation complete:")
     console.print(f"    Tools scored: {result.tools_scored}")
     console.print(f"    Promoted to review: [green]{result.tools_promoted}[/green]")
     if result.tools_below_threshold:
@@ -503,7 +504,7 @@ def review():
 
             elif action in ('q', 'quit'):
                 console.print()
-                console.print(f"[bold]Session summary:[/bold]")
+                console.print("[bold]Session summary:[/bold]")
                 console.print(f"  Approved: [green]{approved}[/green]")
                 console.print(f"  Rejected: [red]{rejected}[/red]")
                 console.print(f"  Skipped: [yellow]{skipped}[/yellow]")
@@ -517,7 +518,7 @@ def review():
 
     # Final summary
     console.print()
-    console.print(f"[bold green]✓ Review complete![/bold green]")
+    console.print("[bold green]✓ Review complete![/bold green]")
     console.print(f"  Approved: [green]{approved}[/green]")
     console.print(f"  Rejected: [red]{rejected}[/red]")
     console.print(f"  Skipped: [yellow]{skipped}[/yellow]")
@@ -575,7 +576,7 @@ def update():
     try:
         result = run_update_check(db)
 
-        console.print(f"[green]✓[/green] Update check complete:")
+        console.print("[green]✓[/green] Update check complete:")
         console.print(f"    Tools checked: {result['tools_checked']}")
         console.print(f"    Changes detected: {result['changes_detected']}")
 
@@ -613,7 +614,7 @@ def report_weekly(weeks, save):
 
     db = get_db()
 
-    console.print(f"[bold blue]Generating weekly digest...[/bold blue]")
+    console.print("[bold blue]Generating weekly digest...[/bold blue]")
 
     report = generate_weekly_digest(db, weeks_back=weeks)
 
@@ -636,7 +637,7 @@ def report_changelog(days, save):
 
     db = get_db()
 
-    console.print(f"[bold blue]Generating changelog...[/bold blue]")
+    console.print("[bold blue]Generating changelog...[/bold blue]")
 
     report = generate_changelog(db, days=days)
 
@@ -658,7 +659,7 @@ def report_index(save):
 
     db = get_db()
 
-    console.print(f"[bold blue]Generating tools index...[/bold blue]")
+    console.print("[bold blue]Generating tools index...[/bold blue]")
 
     report = generate_tools_index(db)
 

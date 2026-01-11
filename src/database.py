@@ -4,12 +4,10 @@ Glean Database Module
 SQLite database schema and operations for the Glean pipeline.
 """
 
+import json
 import sqlite3
-from datetime import datetime
 from pathlib import Path
 from typing import Optional
-import json
-
 
 SCHEMA = """
 -- Sources: where we discover tools (Reddit, Product Hunt, etc.)

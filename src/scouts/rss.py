@@ -9,18 +9,17 @@ relevant content about AI sales tools.
 No API authentication required - just configure feed URLs.
 """
 
-import httpx
-from datetime import datetime, timedelta
-from typing import Optional
-import xml.etree.ElementTree as ET
 import html
 import re
+from datetime import datetime, timedelta
+from typing import Optional
 
-from src.scouts.base import (
-    Scout, Discovery, is_relevant, extract_urls, rate_limit
-)
+import defusedxml.ElementTree as ET
+
+import httpx
+
 from src.database import Database
-
+from src.scouts.base import Discovery, Scout, extract_urls, is_relevant, rate_limit
 
 # Default feeds to monitor
 DEFAULT_FEEDS = [

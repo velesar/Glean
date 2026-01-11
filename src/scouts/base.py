@@ -4,12 +4,11 @@ Scout Base Class
 Abstract base for all data collection scouts.
 """
 
+import re
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from datetime import datetime
 from typing import Optional
-import time
-import re
 
 from src.database import Database
 

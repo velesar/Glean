@@ -5,11 +5,11 @@ Generate reports, digests, and summaries.
 """
 
 from src.reporters.reports import (
-    generate_weekly_digest,
+    ReportStats,
     generate_changelog,
     generate_tools_index,
+    generate_weekly_digest,
     save_report,
-    ReportStats,
 )
 
 __all__ = [

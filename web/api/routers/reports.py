@@ -7,9 +7,8 @@ Generate and retrieve reports.
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import PlainTextResponse
 
-from web.api.deps import get_db, get_current_user
-from src.reporters import generate_weekly_digest, generate_changelog, generate_tools_index
-
+from src.reporters import generate_changelog, generate_tools_index, generate_weekly_digest
+from web.api.deps import get_current_user, get_db
 
 router = APIRouter()
 

@@ -9,7 +9,6 @@ import re
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
-import json
 
 import httpx
 
@@ -124,8 +123,8 @@ class UpdateTracker:
             text = re.sub(r'<[^>]+>', ' ', clean_html)
             text = re.sub(r'\s+', ' ', text).strip()
 
-            # Hash the content
-            content_hash = hashlib.md5(text.encode()).hexdigest()
+            # Hash the content (not used for security, just for deduplication)
+            content_hash = hashlib.md5(text.encode(), usedforsecurity=False).hexdigest()
 
             # Extract pricing info
             pricing_text = self._extract_pricing(text)
@@ -228,7 +227,7 @@ class UpdateTracker:
             # Check feature changes
             if previous.get('features_text') != current.features_text:
                 if current.features_text and not previous.get('features_text'):
-                    desc = f"Features section added"
+                    desc = "Features section added"
                 elif previous.get('features_text') and not current.features_text:
                     desc = "Features section changed"
                 else:

@@ -9,15 +9,12 @@ This scout supports two modes:
 2. Demo mode (uses sample data for testing the pipeline)
 """
 
-import httpx
-from datetime import datetime
 from typing import Optional
 
-from src.scouts.base import (
-    Scout, Discovery, is_relevant, extract_urls, rate_limit
-)
-from src.database import Database
+import httpx
 
+from src.database import Database
+from src.scouts.base import Discovery, Scout, extract_urls, is_relevant, rate_limit
 
 # Default configuration
 DEFAULT_SUBREDDITS = [

@@ -7,7 +7,6 @@ Framework for analyzing discoveries and extracting structured data.
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Optional
-import json
 
 from src.database import Database
 

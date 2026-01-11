@@ -6,7 +6,6 @@ Scores tools for relevance to AI sales automation.
 
 import re
 from dataclasses import dataclass
-from typing import Optional
 
 from src.database import Database
 
@@ -126,7 +125,6 @@ def _score_keywords(text: str) -> tuple[float, list[str]]:
 
     score = 0.0
     reasons = []
-    text_lower = text.lower()
 
     # Check high-value keywords
     for pattern in RELEVANCE_SIGNALS['high']:
