@@ -261,7 +261,11 @@ def curate(min_score, no_merge, max_queue):
 
 @main.command()
 def review():
-    """Interactive HITL review interface."""
+    """Interactive HITL review interface.
+
+    Review tools one by one, approving or rejecting each.
+    Commands: [a]pprove, [r]eject, [s]kip, [q]uit
+    """
     db = get_db()
     tools = db.get_tools_by_status("review")
 
@@ -269,8 +273,102 @@ def review():
         console.print("[green]✓[/green] No tools pending review")
         return
 
-    console.print(f"[blue]{len(tools)} tools pending review[/blue]")
-    console.print("[yellow]Review interface not yet implemented[/yellow]")
+    # Sort by relevance score descending
+    tools.sort(key=lambda t: t.get('relevance_score') or 0, reverse=True)
+
+    console.print(f"[bold blue]Review Queue: {len(tools)} tools[/bold blue]")
+    console.print("Commands: [green][a]pprove[/green], [red][r]eject[/red], [yellow][s]kip[/yellow], [dim][q]uit[/dim]")
+    console.print()
+
+    approved = 0
+    rejected = 0
+    skipped = 0
+
+    for i, tool in enumerate(tools):
+        # Display tool info
+        console.print(f"[bold]─── Tool {i + 1}/{len(tools)} ───[/bold]")
+        console.print()
+
+        _display_tool_for_review(db, tool)
+
+        # Get user input
+        while True:
+            console.print()
+            action = console.input("[green]a[/green]pprove / [red]r[/red]eject / [yellow]s[/yellow]kip / [dim]q[/dim]uit: ").strip().lower()
+
+            if action in ('a', 'approve'):
+                db.update_tool_status(tool['id'], 'approved')
+                # Log the approval in changelog
+                db.add_changelog_entry(
+                    tool['id'],
+                    'new',
+                    f"Tool approved for index: {tool['name']}"
+                )
+                console.print(f"[green]✓ Approved:[/green] {tool['name']}")
+                approved += 1
+                break
+
+            elif action in ('r', 'reject'):
+                reason = console.input("Rejection reason (optional): ").strip()
+                db.update_tool_status(tool['id'], 'rejected', rejection_reason=reason or None)
+                console.print(f"[red]✗ Rejected:[/red] {tool['name']}")
+                rejected += 1
+                break
+
+            elif action in ('s', 'skip'):
+                console.print(f"[yellow]→ Skipped:[/yellow] {tool['name']}")
+                skipped += 1
+                break
+
+            elif action in ('q', 'quit'):
+                console.print()
+                console.print(f"[bold]Session summary:[/bold]")
+                console.print(f"  Approved: [green]{approved}[/green]")
+                console.print(f"  Rejected: [red]{rejected}[/red]")
+                console.print(f"  Skipped: [yellow]{skipped}[/yellow]")
+                console.print(f"  Remaining: {len(tools) - i}")
+                return
+
+            else:
+                console.print("[dim]Invalid input. Use a/r/s/q[/dim]")
+
+        console.print()
+
+    # Final summary
+    console.print()
+    console.print(f"[bold green]✓ Review complete![/bold green]")
+    console.print(f"  Approved: [green]{approved}[/green]")
+    console.print(f"  Rejected: [red]{rejected}[/red]")
+    console.print(f"  Skipped: [yellow]{skipped}[/yellow]")
+
+
+def _display_tool_for_review(db, tool):
+    """Display a tool's details for review."""
+    # Tool header
+    score = tool.get('relevance_score')
+    score_str = f"{score:.2f}" if score else "N/A"
+    score_color = "green" if score and score >= 0.6 else "yellow" if score and score >= 0.4 else "red"
+
+    console.print(f"[bold]{tool['name']}[/bold]  [dim]#{tool['id']}[/dim]")
+    console.print(f"  URL: {tool.get('url') or '[dim]N/A[/dim]'}")
+    console.print(f"  Category: {tool.get('category') or '[dim]Uncategorized[/dim]'}")
+    console.print(f"  Relevance: [{score_color}]{score_str}[/{score_color}]")
+
+    if tool.get('description'):
+        console.print(f"  Description: {tool['description'][:100]}{'...' if len(tool.get('description', '')) > 100 else ''}")
+
+    # Show claims
+    claims = db.get_claims_for_tool(tool['id'])
+    if claims:
+        console.print()
+        console.print(f"  [bold]Claims ({len(claims)}):[/bold]")
+        for claim in claims[:5]:  # Show first 5 claims
+            claim_type = claim.get('claim_type', 'unknown')
+            content = claim['content'][:80] + ('...' if len(claim['content']) > 80 else '')
+            conf = claim.get('confidence', 0)
+            console.print(f"    [{claim_type}] {content} [dim]({conf:.0%})[/dim]")
+        if len(claims) > 5:
+            console.print(f"    [dim]... and {len(claims) - 5} more[/dim]")
 
 
 @main.group()

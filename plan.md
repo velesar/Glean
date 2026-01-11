@@ -136,13 +136,15 @@ AI-driven ranking and queue management.
 Human approval and rejection workflow.
 
 ### 4.1 Review Interface
-- [ ] **Decision**: Choose interface (CLI / web UI / external tool)
-- [ ] Display tool summary with claims and sources
-- [ ] Show confidence scores and flags
-- [ ] Enable approve/reject with reasons
+- [x] **Decision**: CLI interface for v1 (simple, fast)
+- [x] Display tool summary with claims and sources
+- [x] Show relevance scores with color coding
+- [x] Enable approve/reject with optional reasons
+- [x] Skip and quit options with session summary
 
 ### 4.2 Feedback Loop
-- [ ] Log rejection reasons
+- [x] Log rejection reasons to database
+- [x] Log approvals to changelog
 - [ ] Use rejections to improve curation scoring
 - [ ] Track reviewer agreement metrics
 
