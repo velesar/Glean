@@ -1,0 +1,51 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv
+venv
+env
+*.egg-info
+.eggs
+dist
+build
+
+# Node
+web/frontend/node_modules
+web/frontend/.vite
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# Testing
+.pytest_cache
+.coverage
+htmlcov
+
+# Local development
+*.db
+db/*.db
+config.yaml
+.env
+.env.local
+
+# Documentation
+*.md
+!README.md
+docs/
+
+# Reports (generated)
+reports/
+
+# OS files
+.DS_Store
+Thumbs.db
