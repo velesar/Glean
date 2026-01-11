@@ -12,11 +12,10 @@ No API authentication required - just configure feed URLs.
 import html
 import re
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Optional
-from xml.etree.ElementTree import Element
+from typing import Optional
+from xml.etree.ElementTree import Element  # noqa: S405 - used for type hints only
 
-import defusedxml.ElementTree as ET
-
+import defusedxml.ElementTree as ET  # noqa: N817
 import httpx
 
 from src.database import Database

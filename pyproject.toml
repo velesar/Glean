@@ -37,6 +37,10 @@ dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
     "ruff>=0.1",
+    "mypy>=1.0",
+    "bandit>=1.7",
+    "radon>=6.0",
+    "pip-audit>=2.6",
 ]
 reddit = [
     "praw>=7.0",

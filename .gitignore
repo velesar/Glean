@@ -57,3 +57,4 @@ htmlcov/
 reports/*.html
 reports/*.json
 !reports/.gitkeep
+quality_report.txt
