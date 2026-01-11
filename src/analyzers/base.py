@@ -42,7 +42,7 @@ class AnalysisResult:
 class Analyzer(ABC):
     """Abstract base class for analyzers."""
 
-    def __init__(self, db: Database, config: dict = None):
+    def __init__(self, db: Database, config: Optional[dict] = None):
         self.db = db
         self.config = config or {}
 
@@ -70,6 +70,10 @@ class Analyzer(ABC):
         source_id = discovery['source_id']
 
         for tool in result.tools:
+            # Skip tools without URLs
+            if not tool.url:
+                continue
+
             # Add or get existing tool
             tool_id = self.db.add_tool(
                 name=tool.name,

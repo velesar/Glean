@@ -9,7 +9,7 @@ NOTE: Product Hunt API requires OAuth authentication. This scout supports:
 """
 
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Any, Optional
 
 import httpx
 
@@ -51,7 +51,7 @@ class ProductHuntScout(Scout):
 
     source_name = 'producthunt'
 
-    def __init__(self, db: Database, config: dict = None):
+    def __init__(self, db: Database, config: Optional[dict] = None):
         super().__init__(db, config)
         self.topics = self.config.get('topics', DEFAULT_TOPICS)
         self.days_back = self.config.get('days_back', 7)
@@ -380,7 +380,7 @@ next best actions. Gong + Salesforce integration available.''',
         self.client.close()
 
 
-def run_producthunt_scout(db: Database, config: dict = None) -> tuple[int, int]:
+def run_producthunt_scout(db: Database, config: Optional[dict] = None) -> tuple[int, int]:
     """Convenience function to run the Product Hunt scout."""
     scout = ProductHuntScout(db, config)
     try:

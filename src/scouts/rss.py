@@ -75,7 +75,7 @@ class RSSScout(Scout):
 
     source_name = 'rss'
 
-    def __init__(self, db: Database, config: dict = None):
+    def __init__(self, db: Database, config: Optional[dict] = None):
         super().__init__(db, config)
         self.feeds = self.config.get('feeds', DEFAULT_FEEDS)
         self.max_age_days = self.config.get('max_age_days', 7)
@@ -436,7 +436,7 @@ objection handling and discovery call analysis. Several vendors planning integra
         self.client.close()
 
 
-def run_rss_scout(db: Database, config: dict = None) -> tuple[int, int]:
+def run_rss_scout(db: Database, config: Optional[dict] = None) -> tuple[int, int]:
     """Convenience function to run the RSS scout."""
     scout = RSSScout(db, config)
     try:
