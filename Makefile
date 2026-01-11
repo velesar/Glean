@@ -1,4 +1,4 @@
-.PHONY: help install install-dev setup dev backend frontend cli clean lint format test build db-init db-reset
+.PHONY: help install install-dev setup dev backend frontend cli clean lint format test build db-init db-reset db-migrate db-migrate-status db-migrate-rollback db-migrate-create
 
 # Default target
 help:
@@ -18,6 +18,12 @@ help:
 	@echo "Database:"
 	@echo "  make db-init      Initialize database schema"
 	@echo "  make db-reset     Reset database (WARNING: deletes all data)"
+	@echo ""
+	@echo "Migrations:"
+	@echo "  make db-migrate          Apply pending migrations"
+	@echo "  make db-migrate-status   Show migration status"
+	@echo "  make db-migrate-rollback Rollback last migration"
+	@echo "  make db-migrate-create   Create new migration (NAME=name)"
 	@echo ""
 	@echo "Quality:"
 	@echo "  make lint         Run linters"
@@ -62,7 +68,21 @@ db-reset:
 	@echo "WARNING: This will delete all data!"
 	@read -p "Are you sure? [y/N] " confirm && [ "$$confirm" = "y" ]
 	rm -f db/glean.db
-	python -m src.cli init
+	python -m src.cli migrate run
+
+# Migrations
+db-migrate:
+	python -m src.cli migrate run
+
+db-migrate-status:
+	python -m src.cli migrate status
+
+db-migrate-rollback:
+	python -m src.cli migrate rollback --yes
+
+db-migrate-create:
+	@if [ -z "$(NAME)" ]; then echo "Usage: make db-migrate-create NAME=migration_name"; exit 1; fi
+	python -m src.cli migrate create "$(NAME)"
 
 # Code quality
 lint:

@@ -491,6 +491,157 @@ def report_index(save):
         console.print(report)
 
 
+@main.group()
+def migrate():
+    """Database migration commands."""
+    pass
+
+
+@migrate.command(name="status")
+def migrate_status():
+    """Show migration status."""
+    from src.migrations import Migrator
+
+    config = load_config()
+    db_path = config.get("database", {}).get("path", "db/glean.db")
+    migrator = Migrator(db_path)
+
+    try:
+        status = migrator.status()
+
+        console.print("[bold]Migration Status[/bold]")
+        console.print()
+
+        if status["applied"]:
+            console.print(f"[green]Applied ({status['total_applied']}):[/green]")
+            for name in status["applied"]:
+                console.print(f"  [green]✓[/green] {name}")
+        else:
+            console.print("[dim]No migrations applied yet[/dim]")
+
+        if status["pending"]:
+            console.print()
+            console.print(f"[yellow]Pending ({status['total_pending']}):[/yellow]")
+            for name in status["pending"]:
+                console.print(f"  [yellow]○[/yellow] {name}")
+
+    finally:
+        migrator.close()
+
+
+@migrate.command(name="run")
+@click.option("--steps", "-n", type=int, help="Number of migrations to run")
+def migrate_run(steps):
+    """Apply pending migrations."""
+    from src.migrations import Migrator
+
+    config = load_config()
+    db_path = config.get("database", {}).get("path", "db/glean.db")
+    migrator = Migrator(db_path)
+
+    try:
+        pending = migrator.get_pending_migrations()
+        if not pending:
+            console.print("[green]✓[/green] No pending migrations")
+            return
+
+        console.print(f"[bold blue]Applying {len(pending) if steps is None else min(steps, len(pending))} migration(s)...[/bold blue]")
+
+        applied = migrator.migrate(steps)
+
+        for name in applied:
+            console.print(f"  [green]✓[/green] Applied: {name}")
+
+        console.print()
+        console.print(f"[green]✓[/green] {len(applied)} migration(s) applied")
+
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+    finally:
+        migrator.close()
+
+
+@migrate.command(name="rollback")
+@click.option("--steps", "-n", type=int, default=1, help="Number of migrations to rollback")
+@click.confirmation_option(prompt="Are you sure you want to rollback?")
+def migrate_rollback(steps):
+    """Rollback applied migrations."""
+    from src.migrations import Migrator
+
+    config = load_config()
+    db_path = config.get("database", {}).get("path", "db/glean.db")
+    migrator = Migrator(db_path)
+
+    try:
+        applied = migrator.get_applied_migrations()
+        if not applied:
+            console.print("[yellow]![/yellow] No migrations to rollback")
+            return
+
+        console.print(f"[bold yellow]Rolling back {min(steps, len(applied))} migration(s)...[/bold yellow]")
+
+        rolled_back = migrator.rollback(steps)
+
+        for name in rolled_back:
+            console.print(f"  [yellow]↩[/yellow] Rolled back: {name}")
+
+        console.print()
+        console.print(f"[yellow]![/yellow] {len(rolled_back)} migration(s) rolled back")
+
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+    finally:
+        migrator.close()
+
+
+@migrate.command(name="create")
+@click.argument("name")
+@click.option("--table", "-t", is_flag=True, help="Use table creation template")
+def migrate_create(name, table):
+    """Create a new migration file."""
+    from src.migrations import create_migration
+
+    template = "table" if table else "default"
+
+    try:
+        path = create_migration(name, template=template)
+        console.print(f"[green]✓[/green] Created migration: {path}")
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+
+
+@migrate.command(name="reset")
+@click.confirmation_option(prompt="This will rollback ALL migrations. Are you sure?")
+def migrate_reset():
+    """Rollback all migrations."""
+    from src.migrations import Migrator
+
+    config = load_config()
+    db_path = config.get("database", {}).get("path", "db/glean.db")
+    migrator = Migrator(db_path)
+
+    try:
+        applied = migrator.get_applied_migrations()
+        if not applied:
+            console.print("[yellow]![/yellow] No migrations to reset")
+            return
+
+        console.print(f"[bold red]Resetting {len(applied)} migration(s)...[/bold red]")
+
+        rolled_back = migrator.reset()
+
+        for name in rolled_back:
+            console.print(f"  [red]↩[/red] Rolled back: {name}")
+
+        console.print()
+        console.print(f"[red]![/red] Database reset ({len(rolled_back)} migrations rolled back)")
+
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+    finally:
+        migrator.close()
+
+
 @main.command()
 @click.argument("tool_id", type=int)
 def show(tool_id):
