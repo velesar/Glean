@@ -1,0 +1,55 @@
+# Glean Configuration
+# Copy this file to config.yaml and fill in your credentials
+
+# Database
+database:
+  path: db/glean.db
+
+# API Keys
+api_keys:
+  # Anthropic Claude API for analysis
+  anthropic: "sk-ant-xxxx"
+
+  # Reddit API (create app at https://www.reddit.com/prefs/apps)
+  reddit:
+    client_id: "your_client_id"
+    client_secret: "your_client_secret"
+    user_agent: "Glean/1.0"
+
+  # Optional: Search API (SerpAPI, Brave, etc.)
+  # serpapi: "your_serpapi_key"
+  # brave: "your_brave_key"
+
+# Scout Configuration
+scouts:
+  reddit:
+    subreddits:
+      - sales
+      - SaaS
+      - salesforce
+      - startups
+      - Entrepreneur
+    post_limit: 100  # posts per subreddit per run
+    min_score: 5     # minimum upvotes to consider
+
+  # web_search:
+  #   queries:
+  #     - "AI sales automation tools"
+  #     - "best AI SDR tools"
+  #   results_per_query: 20
+
+# Analysis Configuration
+analysis:
+  model: "claude-sonnet-4-20250514"
+  max_claims_per_tool: 20
+  min_confidence: 0.3  # discard claims below this
+
+# Curation Configuration
+curation:
+  min_relevance_score: 0.5
+  max_review_queue_size: 50
+
+# Logging
+logging:
+  level: INFO  # DEBUG, INFO, WARNING, ERROR
+  file: logs/glean.log

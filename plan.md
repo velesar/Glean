@@ -22,22 +22,22 @@ Core infrastructure and project setup.
 - [x] Create plan.md (this file)
 - [x] Create glossary.md
 - [x] Create decisions.md
-- [ ] Set up config.yaml structure (with .gitignore for secrets)
+- [x] Set up config.yaml structure (with .gitignore for secrets)
 
 ### 0.2 Database Schema
-- [ ] Design SQLite schema for tools table
-- [ ] Design sources table (with reliability tracking)
-- [ ] Design claims table (linked to tools and sources)
-- [ ] Design changelog/events table
-- [ ] Design pipeline_state table
-- [ ] Create db initialization script
+- [x] Design SQLite schema for tools table
+- [x] Design sources table (with reliability tracking)
+- [x] Design claims table (linked to tools and sources)
+- [x] Design changelog/events table
+- [x] Design discoveries table (raw scout findings)
+- [x] Create db initialization script
 - [ ] Add sample seed data for testing
 
 ### 0.3 CLI Framework
-- [ ] Set up Python project structure (pyproject.toml or setup.py)
-- [ ] Choose CLI framework (Click, Typer, or argparse)
-- [ ] Implement base CLI with subcommand routing
-- [ ] Add `glean status` command (pipeline statistics)
+- [x] Set up Python project structure (pyproject.toml)
+- [x] Choose CLI framework (Click + Rich)
+- [x] Implement base CLI with subcommand routing
+- [x] Add `glean status` command (pipeline statistics)
 - [ ] Add logging infrastructure
 
 ---
@@ -212,10 +212,11 @@ Phase 0 (Foundation)
 
 ## Immediate Next Steps
 
-1. Complete Phase 0 foundation files (glossary.md, decisions.md, config structure)
-2. Design and implement database schema
-3. Set up Python project with CLI framework
+1. ~~Complete Phase 0 foundation files~~ ✓
+2. ~~Design and implement database schema~~ ✓
+3. ~~Set up Python project with CLI framework~~ ✓
 4. Build first scout (Reddit recommended - good signal, accessible API)
+5. Implement basic analyzer with Claude API integration
 
 ---
 
