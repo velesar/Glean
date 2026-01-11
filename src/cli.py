@@ -106,17 +106,59 @@ def scout():
 
 @scout.command(name="reddit")
 @click.option("--subreddit", "-s", multiple=True, help="Subreddit to scout")
-@click.option("--limit", "-l", default=100, help="Max posts per subreddit")
-def scout_reddit(subreddit, limit):
-    """Scout Reddit for AI tool mentions."""
-    console.print("[yellow]Reddit scout not yet implemented[/yellow]")
-    console.print("Will search:", subreddit if subreddit else "configured subreddits")
+@click.option("--limit", "-l", default=50, help="Max posts per subreddit")
+@click.option("--no-comments", is_flag=True, help="Skip comment extraction")
+@click.option("--demo", is_flag=True, help="Use sample data (no Reddit API needed)")
+def scout_reddit(subreddit, limit, no_comments, demo):
+    """Scout Reddit for AI tool mentions.
+
+    Requires Reddit API credentials in config.yaml, or use --demo for testing.
+    """
+    from src.scouts.reddit import run_reddit_scout
+    from src.config import load_config
+
+    db = get_db()
+    db.init_schema()  # Ensure DB is ready
+
+    # Load config for Reddit credentials
+    app_config = load_config()
+    reddit_creds = app_config.get('api_keys', {}).get('reddit', {})
+
+    config = {
+        'reddit': reddit_creds,
+        'post_limit': limit,
+        'include_comments': not no_comments,
+        'demo': demo,
+    }
+    if subreddit:
+        config['subreddits'] = list(subreddit)
+
+    console.print("[bold blue]Starting Reddit scout...[/bold blue]")
+    if demo:
+        console.print("  Mode: [yellow]Demo (sample data)[/yellow]")
+    else:
+        console.print(f"  Subreddits: {config.get('subreddits', 'default')}")
+        console.print(f"  Post limit: {limit}")
+        console.print(f"  Include comments: {not no_comments}")
+    console.print()
+
+    try:
+        saved, skipped = run_reddit_scout(db, config)
+        console.print()
+        console.print(f"[green]✓[/green] Scout complete: {saved} new discoveries, {skipped} duplicates skipped")
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
 
 
 @scout.command(name="all")
-def scout_all():
+@click.pass_context
+def scout_all(ctx):
     """Run all configured scouts."""
-    console.print("[yellow]Scouts not yet implemented[/yellow]")
+    console.print("[bold]Running all scouts...[/bold]")
+    console.print()
+
+    # Run Reddit scout
+    ctx.invoke(scout_reddit)
 
 
 @main.command()

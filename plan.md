@@ -47,17 +47,18 @@ Core infrastructure and project setup.
 Data collection from external sources.
 
 ### 1.1 Scout Base
-- [ ] Define Scout abstract base class
-- [ ] Implement deduplication check (against inbox + later stages)
-- [ ] Implement rate limiting utilities
+- [x] Define Scout abstract base class
+- [x] Implement deduplication check (against inbox + later stages)
+- [x] Implement rate limiting utilities
+- [x] Keyword filtering for relevance detection
 - [ ] Create source reliability tracking
 
 ### 1.2 Reddit Scout
-- [ ] Set up Reddit API access (PRAW or direct API)
-- [ ] Define target subreddits (r/sales, r/SaaS, r/salesforce, etc.)
-- [ ] Implement post/comment extraction
-- [ ] Parse and normalize tool mentions
-- [ ] Store raw findings to inbox
+- [x] Set up Reddit API access (OAuth + demo mode)
+- [x] Define target subreddits (r/sales, r/SaaS, r/salesforce, etc.)
+- [x] Implement post/comment extraction
+- [x] Parse and normalize tool mentions
+- [x] Store raw findings to discoveries table
 
 ### 1.3 Web Search Scout
 - [ ] Evaluate search APIs (SerpAPI, Brave, etc.)
