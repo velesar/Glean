@@ -1,6 +1,6 @@
 // API client functions
 
-import type { PipelineStats, Tool, Claim, Job, User, AuthToken, SetupStatus } from './types'
+import type { PipelineStats, Tool, Claim, Job, User, AuthToken, SetupStatus, AllSettings } from './types'
 
 const API_BASE = '/api'
 const TOKEN_KEY = 'glean_token'
@@ -192,4 +192,40 @@ export async function getChangelog(): Promise<string> {
 export async function getToolsIndex(): Promise<string> {
   const response = await fetchWithAuth('/reports/index/raw')
   return response.text()
+}
+
+// Settings
+export async function getSettings(): Promise<AllSettings> {
+  return fetchJson<AllSettings>('/settings')
+}
+
+export async function updateSetting(
+  category: string,
+  key: string,
+  value: string,
+  isSecret: boolean = false
+): Promise<{ success: boolean }> {
+  return fetchJson<{ success: boolean }>(`/settings/${category}/${key}`, {
+    method: 'PUT',
+    body: JSON.stringify({ value, is_secret: isSecret }),
+  })
+}
+
+export async function deleteSetting(
+  category: string,
+  key: string
+): Promise<{ success: boolean }> {
+  return fetchJson<{ success: boolean }>(`/settings/${category}/${key}`, {
+    method: 'DELETE',
+  })
+}
+
+export async function testSetting(
+  category: string,
+  key: string
+): Promise<{ success: boolean; message: string }> {
+  return fetchJson<{ success: boolean; message: string }>(
+    `/settings/test/${category}/${key}`,
+    { method: 'POST' }
+  )
 }

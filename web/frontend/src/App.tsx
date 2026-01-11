@@ -7,6 +7,7 @@ import { Dashboard } from './pages/Dashboard'
 import { Review } from './pages/Review'
 import { Tools } from './pages/Tools'
 import { Jobs } from './pages/Jobs'
+import { Settings } from './pages/Settings'
 
 function App() {
   return (
@@ -25,6 +26,7 @@ function App() {
           <Route path="review" element={<Review />} />
           <Route path="tools" element={<Tools />} />
           <Route path="jobs" element={<Jobs />} />
+          <Route path="settings" element={<Settings />} />
         </Route>
       </Routes>
     </AuthProvider>

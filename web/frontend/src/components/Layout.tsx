@@ -44,7 +44,7 @@ export function Layout() {
                 ))}
               </div>
             </div>
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2">
               {user && (
                 <>
                   <span className="text-sm text-gray-600">
@@ -55,6 +55,19 @@ export function Layout() {
                       </span>
                     )}
                   </span>
+                  <span className="text-gray-300">|</span>
+                  <NavLink
+                    to="/settings"
+                    className={({ isActive }) =>
+                      `text-sm px-3 py-2 rounded-md transition-colors ${
+                        isActive
+                          ? 'text-gray-900 bg-gray-100'
+                          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                      }`
+                    }
+                  >
+                    Settings
+                  </NavLink>
                   <button
                     onClick={handleLogout}
                     className="text-sm text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md hover:bg-gray-100 transition-colors"

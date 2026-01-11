@@ -70,3 +70,27 @@ export interface ActivityItem {
   message: string
   timestamp: string
 }
+
+export interface SettingMeta {
+  label: string
+  description: string
+  placeholder?: string
+  default?: string
+  options?: string[]
+}
+
+export interface SettingValue extends SettingMeta {
+  value: string | null
+  is_set: boolean
+  is_secret: boolean
+}
+
+export interface SettingsCategory {
+  [key: string]: SettingValue
+}
+
+export interface AllSettings {
+  api_keys: SettingsCategory
+  scouts: SettingsCategory
+  analyzers: SettingsCategory
+}

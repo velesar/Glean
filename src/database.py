@@ -418,6 +418,80 @@ class Database:
         conn = self.connect()
         return conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
 
+    # --- Settings Operations ---
+
+    def get_setting(self, user_id: int, category: str, key: str) -> Optional[str]:
+        """Get a single setting value."""
+        conn = self.connect()
+        row = conn.execute(
+            "SELECT value FROM settings WHERE user_id = ? AND category = ? AND key = ?",
+            (user_id, category, key)
+        ).fetchone()
+        return row["value"] if row else None
+
+    def get_settings_by_category(self, user_id: int, category: str) -> dict:
+        """Get all settings in a category as a dict."""
+        conn = self.connect()
+        rows = conn.execute(
+            "SELECT key, value, is_secret FROM settings WHERE user_id = ? AND category = ?",
+            (user_id, category)
+        ).fetchall()
+        return {row["key"]: {"value": row["value"], "is_secret": bool(row["is_secret"])} for row in rows}
+
+    def get_all_settings(self, user_id: int) -> dict:
+        """Get all settings for a user, grouped by category."""
+        conn = self.connect()
+        rows = conn.execute(
+            "SELECT category, key, value, is_secret FROM settings WHERE user_id = ? ORDER BY category, key",
+            (user_id,)
+        ).fetchall()
+
+        result = {}
+        for row in rows:
+            cat = row["category"]
+            if cat not in result:
+                result[cat] = {}
+            result[cat][row["key"]] = {
+                "value": row["value"],
+                "is_secret": bool(row["is_secret"])
+            }
+        return result
+
+    def set_setting(self, user_id: int, category: str, key: str, value: str,
+                    is_secret: bool = False):
+        """Set a setting value (insert or update)."""
+        conn = self.connect()
+        conn.execute(
+            """INSERT INTO settings (user_id, category, key, value, is_secret)
+               VALUES (?, ?, ?, ?, ?)
+               ON CONFLICT(user_id, category, key) DO UPDATE SET
+                   value = excluded.value,
+                   is_secret = excluded.is_secret,
+                   updated_at = CURRENT_TIMESTAMP""",
+            (user_id, category, key, value, 1 if is_secret else 0)
+        )
+        conn.commit()
+
+    def delete_setting(self, user_id: int, category: str, key: str) -> bool:
+        """Delete a setting. Returns True if deleted."""
+        conn = self.connect()
+        cursor = conn.execute(
+            "DELETE FROM settings WHERE user_id = ? AND category = ? AND key = ?",
+            (user_id, category, key)
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+
+    def delete_settings_category(self, user_id: int, category: str) -> int:
+        """Delete all settings in a category. Returns count deleted."""
+        conn = self.connect()
+        cursor = conn.execute(
+            "DELETE FROM settings WHERE user_id = ? AND category = ?",
+            (user_id, category)
+        )
+        conn.commit()
+        return cursor.rowcount
+
     # --- Statistics ---
 
     def get_pipeline_stats(self) -> dict:
