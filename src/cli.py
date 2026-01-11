@@ -371,6 +371,52 @@ def _display_tool_for_review(db, tool):
             console.print(f"    [dim]... and {len(claims) - 5} more[/dim]")
 
 
+@main.command()
+def update():
+    """Check approved tools for updates and changes.
+
+    Fetches tool webpages and detects pricing, feature, and content changes.
+    """
+    from src.tracker import run_update_check
+
+    db = get_db()
+    db.init_schema()  # Ensure snapshots table exists
+
+    tools = db.get_tools_by_status('approved')
+    if not tools:
+        console.print("[yellow]![/yellow] No approved tools to check")
+        console.print("    Approve some tools first with 'glean review'")
+        return
+
+    console.print(f"[bold blue]Checking {len(tools)} approved tools for updates...[/bold blue]")
+    console.print()
+
+    try:
+        result = run_update_check(db)
+
+        console.print(f"[green]✓[/green] Update check complete:")
+        console.print(f"    Tools checked: {result['tools_checked']}")
+        console.print(f"    Changes detected: {result['changes_detected']}")
+
+        if result['changes']:
+            console.print()
+            console.print("[bold]Detected changes:[/bold]")
+            for change in result['changes']:
+                change_color = {
+                    'pricing_change': 'yellow',
+                    'feature_added': 'green',
+                    'feature_removed': 'red',
+                    'news': 'blue',
+                    'content_change': 'dim',
+                }.get(change.change_type, 'white')
+
+                console.print(f"  [{change_color}]{change.change_type}[/{change_color}] "
+                            f"{change.tool_name}: {change.description[:60]}")
+
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+
+
 @main.group()
 def report():
     """Generate reports and digests."""

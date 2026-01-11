@@ -81,6 +81,19 @@ CREATE TABLE IF NOT EXISTS changelog (
     FOREIGN KEY (tool_id) REFERENCES tools(id) ON DELETE CASCADE
 );
 
+-- Tool Snapshots: periodic snapshots of tool webpages for change detection
+CREATE TABLE IF NOT EXISTS tool_snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tool_id INTEGER NOT NULL,
+    url TEXT NOT NULL,
+    title TEXT,
+    content_hash TEXT,                     -- MD5 hash of page content
+    pricing_text TEXT,                     -- extracted pricing info
+    features_text TEXT,                    -- extracted features
+    fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (tool_id) REFERENCES tools(id) ON DELETE CASCADE
+);
+
 -- Indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_tools_status ON tools(status);
 CREATE INDEX IF NOT EXISTS idx_tools_category ON tools(category);
@@ -88,6 +101,7 @@ CREATE INDEX IF NOT EXISTS idx_claims_tool ON claims(tool_id);
 CREATE INDEX IF NOT EXISTS idx_claims_type ON claims(claim_type);
 CREATE INDEX IF NOT EXISTS idx_discoveries_processed ON discoveries(processed);
 CREATE INDEX IF NOT EXISTS idx_changelog_tool ON changelog(tool_id);
+CREATE INDEX IF NOT EXISTS idx_snapshots_tool ON tool_snapshots(tool_id);
 """
 
 

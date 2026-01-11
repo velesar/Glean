@@ -155,14 +155,17 @@ Human approval and rejection workflow.
 Monitor approved tools for changes.
 
 ### 5.1 Change Detection
-- [ ] Periodic re-scrape of approved tool pages
-- [ ] Detect pricing changes
-- [ ] Detect feature additions/removals
-- [ ] Detect news/announcements
+- [x] Webpage fetching for approved tools
+- [x] Content hashing for change detection
+- [x] Detect pricing changes (pattern matching)
+- [x] Detect feature changes
+- [x] Detect title/content updates
+- [ ] Scheduled periodic checks (cron)
 
 ### 5.2 Changelog System
-- [ ] Record all changes with timestamps
-- [ ] Link changes to sources
+- [x] Record all changes with timestamps
+- [x] Link changes to source URLs
+- [x] Store page snapshots for comparison
 - [ ] Generate diff summaries
 
 ---
