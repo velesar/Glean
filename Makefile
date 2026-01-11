@@ -1,4 +1,4 @@
-.PHONY: help install install-dev setup dev backend frontend cli clean lint format test build db-init db-reset db-migrate db-migrate-status db-migrate-rollback db-migrate-create
+.PHONY: help install install-dev setup dev backend frontend cli clean lint format test build db-init db-reset db-migrate db-migrate-status db-migrate-rollback db-migrate-create docker-build docker-run deploy deploy-first-time
 
 # Default target
 help:
@@ -30,9 +30,13 @@ help:
 	@echo "  make format       Format code"
 	@echo "  make test         Run tests"
 	@echo ""
-	@echo "Build:"
-	@echo "  make build        Build frontend for production"
-	@echo "  make clean        Clean build artifacts"
+	@echo "Build & Deploy:"
+	@echo "  make build             Build frontend for production"
+	@echo "  make docker-build      Build Docker image locally"
+	@echo "  make docker-run        Run Docker container locally"
+	@echo "  make deploy-first-time First-time Fly.io setup"
+	@echo "  make deploy            Deploy to Fly.io"
+	@echo "  make clean             Clean build artifacts"
 
 # Installation
 install:
@@ -127,3 +131,34 @@ report-weekly:
 
 report-changelog:
 	python -m src.cli report changelog
+
+# Docker
+docker-build:
+	docker build -t glean:latest .
+
+docker-run:
+	docker run -p 8080:8080 -e GLEAN_SECRET_KEY=dev-secret-key -v glean_data:/data glean:latest
+
+docker-compose-up:
+	docker compose up --build
+
+docker-compose-down:
+	docker compose down
+
+# Fly.io Deployment
+deploy-first-time:
+	@chmod +x scripts/deploy.sh
+	./scripts/deploy.sh --first-time
+
+deploy:
+	@chmod +x scripts/deploy.sh
+	./scripts/deploy.sh
+
+deploy-status:
+	fly status
+
+deploy-logs:
+	fly logs
+
+deploy-ssh:
+	fly ssh console

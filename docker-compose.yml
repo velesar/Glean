@@ -1,0 +1,25 @@
+# Docker Compose for local production testing
+# Usage: docker compose up --build
+
+services:
+  glean:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - GLEAN_SECRET_KEY=${GLEAN_SECRET_KEY:-dev-secret-key-change-me}
+      - GLEAN_DB_PATH=/data/glean.db
+      - CORS_ORIGINS=http://localhost:8080
+    volumes:
+      - glean_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  glean_data:
