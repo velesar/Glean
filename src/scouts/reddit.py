@@ -197,7 +197,7 @@ class RedditScout(Scout):
             if len(data) < 2:
                 return []
 
-            comments = []
+            comments: list[dict[str, Any]] = []
             self._extract_comments(data[1].get('data', {}).get('children', []), comments)
             return comments
 
@@ -285,7 +285,7 @@ class RedditScout(Scout):
 
     def _get_demo_discoveries(self) -> list[Discovery]:
         """Return sample discoveries for testing the pipeline."""
-        samples = [
+        samples: list[dict[str, Any]] = [
             {
                 'source_url': 'https://www.reddit.com/r/sales/comments/demo1',
                 'raw_text': '''Best AI tools for SDR outreach in 2026?

@@ -6,6 +6,7 @@ Uses Claude API to extract tools and claims from discoveries.
 
 import json
 import re
+from typing import Optional
 
 try:
     import anthropic
@@ -72,7 +73,7 @@ If no tools are mentioned, return: {{"tools": [], "claims": []}}
 class ClaudeAnalyzer(Analyzer):
     """Analyzer using Claude API for extraction."""
 
-    def __init__(self, db: Database, config: dict = None):
+    def __init__(self, db: Database, config: Optional[dict] = None):
         super().__init__(db, config)
 
         if not HAS_ANTHROPIC:
@@ -244,10 +245,11 @@ class MockAnalyzer(Analyzer):
         )
 
 
-def run_analyzer(db: Database, config: dict = None, use_mock: bool = False) -> dict:
+def run_analyzer(db: Database, config: Optional[dict] = None, use_mock: bool = False) -> dict:
     """Run the analyzer on unprocessed discoveries."""
     config = config or {}
 
+    analyzer: Analyzer
     if use_mock:
         analyzer = MockAnalyzer(db, config)
     else:

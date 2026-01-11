@@ -12,7 +12,7 @@ No API authentication required - just configure feed URLs.
 import html
 import re
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Any, Optional
 from xml.etree.ElementTree import Element  # noqa: S405 - used for type hints only
 
 import defusedxml.ElementTree as ET  # noqa: N817
@@ -111,8 +111,10 @@ class RSSScout(Scout):
 
     def _fetch_feed(self, feed: dict) -> list[Discovery]:
         """Fetch and parse an RSS feed."""
-        discoveries = []
+        discoveries: list[Discovery] = []
         url = feed.get('url')
+        if not url:
+            return discoveries
         feed_name = feed.get('name', url)
         category = feed.get('category', 'general')
 
@@ -259,7 +261,7 @@ class RSSScout(Scout):
             return (child.text or '').strip()
         return None
 
-    def _clean_html(self, text: str) -> str:
+    def _clean_html(self, text: Optional[str]) -> str:
         """Remove HTML tags and decode entities."""
         if not text:
             return ''
@@ -275,7 +277,7 @@ class RSSScout(Scout):
 
         return text
 
-    def _parse_date(self, date_str: str) -> Optional[datetime]:
+    def _parse_date(self, date_str: Optional[str]) -> Optional[datetime]:
         """Parse various date formats found in feeds."""
         if not date_str:
             return None
@@ -320,6 +322,9 @@ class RSSScout(Scout):
         # Extract URLs from description
         urls_in_text = extract_urls(description)
 
+        pub_date = item.get('pub_date')
+        pub_date_str = pub_date.isoformat() if pub_date else None
+
         return Discovery(
             source_name='rss',
             source_url=link,
@@ -330,7 +335,7 @@ class RSSScout(Scout):
                 'feed_category': category,
                 'title': title,
                 'author': item.get('author'),
-                'pub_date': item.get('pub_date').isoformat() if item.get('pub_date') else None,
+                'pub_date': pub_date_str,
                 'guid': item.get('guid'),
                 'urls_mentioned': urls_in_text,
             }
@@ -338,7 +343,7 @@ class RSSScout(Scout):
 
     def _get_demo_discoveries(self) -> list[Discovery]:
         """Return sample discoveries for testing."""
-        samples = [
+        samples: list[dict[str, Any]] = [
             {
                 'source_url': 'https://techcrunch.com/2026/01/10/new-ai-sales-platform',
                 'raw_text': '''New AI Sales Platform Raises $50M to Automate Outbound

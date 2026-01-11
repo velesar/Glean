@@ -278,7 +278,7 @@ class ProductHuntScout(Scout):
 
     def _get_demo_discoveries(self) -> list[Discovery]:
         """Return sample discoveries for testing."""
-        samples = [
+        samples: list[dict[str, Any]] = [
             {
                 'source_url': 'https://www.producthunt.com/posts/salesai-copilot',
                 'raw_text': '''SalesAI Copilot
