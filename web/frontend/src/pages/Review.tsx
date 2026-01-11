@@ -4,16 +4,18 @@ import { ToolCard } from '../components/ToolCard'
 import type { Tool } from '../types'
 
 export function Review() {
-  const { data: tools, isLoading } = useTools('review')
+  const { data, isLoading } = useTools('review')
   const updateStatus = useUpdateToolStatus()
   const [currentIndex, setCurrentIndex] = useState(0)
   const [selectedTool, setSelectedTool] = useState<Tool | null>(null)
   const [rejectReason, setRejectReason] = useState('')
   const [showRejectModal, setShowRejectModal] = useState(false)
 
-  const { data: claims } = useToolClaims(selectedTool?.id || 0)
+  const tools = data?.tools || []
+  const { data: claimsData } = useToolClaims(selectedTool?.id || 0)
+  const claims = claimsData?.claims || []
 
-  const currentTool = tools?.[currentIndex]
+  const currentTool = tools[currentIndex]
 
   const handleApprove = (tool: Tool) => {
     updateStatus.mutate(
@@ -48,7 +50,7 @@ export function Review() {
   }
 
   const moveToNext = () => {
-    if (tools && currentIndex < tools.length - 1) {
+    if (currentIndex < tools.length - 1) {
       setCurrentIndex(currentIndex + 1)
     }
   }
@@ -69,7 +71,7 @@ export function Review() {
     )
   }
 
-  if (!tools || tools.length === 0) {
+  if (tools.length === 0) {
     return (
       <div className="text-center py-12">
         <h1 className="text-2xl font-bold text-gray-900 mb-4">Review Queue</h1>
@@ -112,7 +114,7 @@ export function Review() {
           >
             Load claims
           </button>
-          {selectedTool?.id === currentTool.id && claims && (
+          {selectedTool?.id === currentTool.id && (
             <div className="space-y-2">
               {claims.length === 0 ? (
                 <p className="text-sm text-gray-500">No claims extracted yet</p>

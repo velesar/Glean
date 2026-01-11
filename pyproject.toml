@@ -43,8 +43,16 @@ reddit = [
 anthropic = [
     "anthropic>=0.18",
 ]
+web = [
+    "fastapi>=0.109",
+    "uvicorn[standard]>=0.27",
+    "passlib[bcrypt]>=1.7",
+    "python-jose[cryptography]>=3.3",
+    "python-multipart>=0.0.9",
+    "pydantic[email]>=2.0",
+]
 all = [
-    "glean[reddit,anthropic]",
+    "glean[reddit,anthropic,web]",
 ]
 
 [project.scripts]

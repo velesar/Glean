@@ -1,5 +1,25 @@
 // API Types
 
+export interface User {
+  id: number
+  username: string
+  email: string
+  is_active: boolean
+  is_admin: boolean
+  created_at: string
+  last_login: string | null
+}
+
+export interface AuthToken {
+  access_token: string
+  token_type: string
+}
+
+export interface SetupStatus {
+  needs_setup: boolean
+  user_count: number
+}
+
 export interface PipelineStats {
   inbox: number
   analyzing: number

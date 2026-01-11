@@ -3,11 +3,12 @@ import { StatCard } from '../components/StatCard'
 
 export function Dashboard() {
   const { data: stats, isLoading: statsLoading } = useStats()
-  const { data: jobs } = useJobs()
+  const { data: jobsData } = useJobs()
   const startJob = useStartJob()
 
-  const runningJobs = jobs?.filter((j) => j.status === 'running') || []
-  const recentJobs = jobs?.filter((j) => j.status !== 'running').slice(0, 5) || []
+  const jobs = jobsData?.jobs || []
+  const runningJobs = jobs.filter((j) => j.status === 'running')
+  const recentJobs = jobs.filter((j) => j.status !== 'running').slice(0, 5)
 
   const handleRunScout = () => {
     startJob.mutate({ type: 'scout', options: { demo: true } })

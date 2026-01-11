@@ -7,7 +7,7 @@ Pipeline statistics and dashboard data.
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
-from web.api.deps import get_db
+from web.api.deps import get_db, get_current_user
 from src.database import Database
 
 
@@ -36,7 +36,7 @@ class ActivityItem(BaseModel):
 
 
 @router.get("/stats", response_model=PipelineStats)
-async def get_stats():
+async def get_stats(current_user: dict = Depends(get_current_user)):
     """Get pipeline statistics for dashboard."""
     db = get_db()
     stats = db.get_pipeline_stats()
@@ -55,7 +55,7 @@ async def get_stats():
 
 
 @router.get("/activity")
-async def get_activity(limit: int = 20):
+async def get_activity(limit: int = 20, current_user: dict = Depends(get_current_user)):
     """Get recent activity log."""
     db = get_db()
     conn = db.connect()

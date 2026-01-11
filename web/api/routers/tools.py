@@ -4,11 +4,11 @@ Tools Router
 CRUD operations for tools.
 """
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from typing import Optional
 
-from web.api.deps import get_db
+from web.api.deps import get_db, get_current_user
 
 
 router = APIRouter()
@@ -55,6 +55,7 @@ async def list_tools(
     category: Optional[str] = Query(None, description="Filter by category"),
     limit: int = Query(50, le=200),
     offset: int = Query(0, ge=0),
+    current_user: dict = Depends(get_current_user),
 ):
     """List tools with optional filters."""
     db = get_db()
@@ -101,7 +102,7 @@ async def list_tools(
 
 
 @router.get("/{tool_id}")
-async def get_tool(tool_id: int):
+async def get_tool(tool_id: int, current_user: dict = Depends(get_current_user)):
     """Get tool details with claims."""
     db = get_db()
     tool = db.get_tool(tool_id)
@@ -118,7 +119,7 @@ async def get_tool(tool_id: int):
 
 
 @router.put("/{tool_id}/status")
-async def update_tool_status(tool_id: int, update: StatusUpdate):
+async def update_tool_status(tool_id: int, update: StatusUpdate, current_user: dict = Depends(get_current_user)):
     """Update tool status (approve/reject)."""
     db = get_db()
     tool = db.get_tool(tool_id)
@@ -144,7 +145,7 @@ async def update_tool_status(tool_id: int, update: StatusUpdate):
 
 
 @router.get("/{tool_id}/claims")
-async def get_tool_claims(tool_id: int):
+async def get_tool_claims(tool_id: int, current_user: dict = Depends(get_current_user)):
     """Get claims for a specific tool."""
     db = get_db()
     tool = db.get_tool(tool_id)

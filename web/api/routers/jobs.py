@@ -9,10 +9,10 @@ import uuid
 from datetime import datetime
 from enum import Enum
 from typing import Optional
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 
-from web.api.deps import get_db
+from web.api.deps import get_db, get_current_user
 
 
 router = APIRouter()
@@ -237,7 +237,7 @@ async def run_update_job(job_id: str):
 
 
 @router.get("")
-async def list_jobs(limit: int = 20):
+async def list_jobs(limit: int = 20, current_user: dict = Depends(get_current_user)):
     """List recent jobs."""
     sorted_jobs = sorted(
         jobs.values(),
@@ -249,7 +249,7 @@ async def list_jobs(limit: int = 20):
 
 
 @router.get("/{job_id}")
-async def get_job(job_id: str):
+async def get_job(job_id: str, current_user: dict = Depends(get_current_user)):
     """Get job status."""
     job = jobs.get(job_id)
     if not job:
@@ -258,7 +258,7 @@ async def get_job(job_id: str):
 
 
 @router.post("/scout")
-async def start_scout(config: ScoutConfig, background_tasks: BackgroundTasks):
+async def start_scout(config: ScoutConfig, background_tasks: BackgroundTasks, current_user: dict = Depends(get_current_user)):
     """Start a scout job."""
     job = create_job(JobType.SCOUT)
     background_tasks.add_task(run_scout_job, job.id, config)
@@ -266,7 +266,7 @@ async def start_scout(config: ScoutConfig, background_tasks: BackgroundTasks):
 
 
 @router.post("/analyze")
-async def start_analyze(config: AnalyzeConfig, background_tasks: BackgroundTasks):
+async def start_analyze(config: AnalyzeConfig, background_tasks: BackgroundTasks, current_user: dict = Depends(get_current_user)):
     """Start an analyzer job."""
     job = create_job(JobType.ANALYZE)
     background_tasks.add_task(run_analyze_job, job.id, config)
@@ -274,7 +274,7 @@ async def start_analyze(config: AnalyzeConfig, background_tasks: BackgroundTasks
 
 
 @router.post("/curate")
-async def start_curate(config: CurateConfig, background_tasks: BackgroundTasks):
+async def start_curate(config: CurateConfig, background_tasks: BackgroundTasks, current_user: dict = Depends(get_current_user)):
     """Start a curation job."""
     job = create_job(JobType.CURATE)
     background_tasks.add_task(run_curate_job, job.id, config)
@@ -282,7 +282,7 @@ async def start_curate(config: CurateConfig, background_tasks: BackgroundTasks):
 
 
 @router.post("/update")
-async def start_update(background_tasks: BackgroundTasks):
+async def start_update(background_tasks: BackgroundTasks, current_user: dict = Depends(get_current_user)):
     """Start an update check job."""
     job = create_job(JobType.UPDATE)
     background_tasks.add_task(run_update_job, job.id)
@@ -290,7 +290,7 @@ async def start_update(background_tasks: BackgroundTasks):
 
 
 @router.delete("/{job_id}")
-async def cancel_job(job_id: str):
+async def cancel_job(job_id: str, current_user: dict = Depends(get_current_user)):
     """Cancel a running job."""
     job = jobs.get(job_id)
     if not job:

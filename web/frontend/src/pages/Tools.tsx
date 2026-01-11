@@ -31,7 +31,7 @@ export function Tools() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">Tools</h1>
-        <span className="text-sm text-gray-500">{tools?.length || 0} tools</span>
+        <span className="text-sm text-gray-500">{tools?.total || 0} tools</span>
       </div>
 
       {/* Filters */}
@@ -52,7 +52,7 @@ export function Tools() {
       </div>
 
       {/* Tools Grid */}
-      {!tools || tools.length === 0 ? (
+      {!tools?.tools || tools.tools.length === 0 ? (
         <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
           <p className="text-gray-500">
             No tools found{statusFilter !== 'all' ? ` with status "${statusFilter}"` : ''}.
@@ -60,7 +60,7 @@ export function Tools() {
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
-          {tools.map((tool) => (
+          {tools.tools.map((tool) => (
             <ToolCard key={tool.id} tool={tool} />
           ))}
         </div>

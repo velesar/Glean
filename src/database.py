@@ -94,6 +94,18 @@ CREATE TABLE IF NOT EXISTS tool_snapshots (
     FOREIGN KEY (tool_id) REFERENCES tools(id) ON DELETE CASCADE
 );
 
+-- Users: authentication and authorization
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE NOT NULL,
+    email TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    is_active INTEGER DEFAULT 1,
+    is_admin INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_login TIMESTAMP
+);
+
 -- Indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_tools_status ON tools(status);
 CREATE INDEX IF NOT EXISTS idx_tools_category ON tools(category);
@@ -102,6 +114,8 @@ CREATE INDEX IF NOT EXISTS idx_claims_type ON claims(claim_type);
 CREATE INDEX IF NOT EXISTS idx_discoveries_processed ON discoveries(processed);
 CREATE INDEX IF NOT EXISTS idx_changelog_tool ON changelog(tool_id);
 CREATE INDEX IF NOT EXISTS idx_snapshots_tool ON tool_snapshots(tool_id);
+CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 """
 
 
@@ -349,6 +363,60 @@ class Database:
             (f'-{days} days', limit)
         ).fetchall()
         return [dict(row) for row in rows]
+
+    # --- User Operations ---
+
+    def create_user(self, username: str, email: str, password_hash: str,
+                    is_admin: bool = False) -> int:
+        """Create a new user."""
+        conn = self.connect()
+        cursor = conn.execute(
+            """INSERT INTO users (username, email, password_hash, is_admin)
+               VALUES (?, ?, ?, ?)
+               RETURNING id""",
+            (username, email, password_hash, 1 if is_admin else 0)
+        )
+        user_id = cursor.fetchone()[0]
+        conn.commit()
+        return user_id
+
+    def get_user_by_username(self, username: str) -> Optional[dict]:
+        """Get a user by username."""
+        conn = self.connect()
+        row = conn.execute(
+            "SELECT * FROM users WHERE username = ?", (username,)
+        ).fetchone()
+        return dict(row) if row else None
+
+    def get_user_by_email(self, email: str) -> Optional[dict]:
+        """Get a user by email."""
+        conn = self.connect()
+        row = conn.execute(
+            "SELECT * FROM users WHERE email = ?", (email,)
+        ).fetchone()
+        return dict(row) if row else None
+
+    def get_user_by_id(self, user_id: int) -> Optional[dict]:
+        """Get a user by ID."""
+        conn = self.connect()
+        row = conn.execute(
+            "SELECT * FROM users WHERE id = ?", (user_id,)
+        ).fetchone()
+        return dict(row) if row else None
+
+    def update_last_login(self, user_id: int):
+        """Update user's last login timestamp."""
+        conn = self.connect()
+        conn.execute(
+            "UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?",
+            (user_id,)
+        )
+        conn.commit()
+
+    def get_user_count(self) -> int:
+        """Get total number of users."""
+        conn = self.connect()
+        return conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
 
     # --- Statistics ---
 

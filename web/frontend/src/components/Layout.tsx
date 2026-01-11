@@ -1,4 +1,5 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
 
 const navItems = [
   { path: '/', label: 'Dashboard' },
@@ -8,6 +9,14 @@ const navItems = [
 ]
 
 export function Layout() {
+  const { user, logout } = useAuth()
+  const navigate = useNavigate()
+
+  const handleLogout = async () => {
+    await logout()
+    navigate('/login')
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-white shadow-sm border-b border-gray-200">
@@ -34,6 +43,26 @@ export function Layout() {
                   </NavLink>
                 ))}
               </div>
+            </div>
+            <div className="flex items-center space-x-4">
+              {user && (
+                <>
+                  <span className="text-sm text-gray-600">
+                    {user.username}
+                    {user.is_admin && (
+                      <span className="ml-1 px-1.5 py-0.5 text-xs bg-blue-100 text-blue-700 rounded">
+                        Admin
+                      </span>
+                    )}
+                  </span>
+                  <button
+                    onClick={handleLogout}
+                    className="text-sm text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md hover:bg-gray-100 transition-colors"
+                  >
+                    Logout
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>

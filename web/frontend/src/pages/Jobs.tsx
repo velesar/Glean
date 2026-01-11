@@ -1,13 +1,14 @@
 import { useJobs, useStartJob, useCancelJob } from '../hooks/useApi'
 
 export function Jobs() {
-  const { data: jobs, isLoading } = useJobs()
+  const { data: jobsData, isLoading } = useJobs()
   const startJob = useStartJob()
   const cancelJob = useCancelJob()
 
-  const runningJobs = jobs?.filter((j) => j.status === 'running') || []
-  const completedJobs = jobs?.filter((j) => j.status === 'completed') || []
-  const failedJobs = jobs?.filter((j) => j.status === 'failed') || []
+  const jobs = jobsData?.jobs || []
+  const runningJobs = jobs.filter((j) => j.status === 'running')
+  const completedJobs = jobs.filter((j) => j.status === 'completed')
+  const failedJobs = jobs.filter((j) => j.status === 'failed')
 
   const handleStartJob = (type: 'scout' | 'analyze' | 'curate' | 'update') => {
     const options = type === 'scout' ? { demo: true } : undefined
