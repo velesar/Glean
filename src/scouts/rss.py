@@ -13,7 +13,7 @@ import html
 import re
 from datetime import datetime, timedelta
 from typing import Any, Optional
-from xml.etree.ElementTree import Element  # noqa: S405 - used for type hints only
+from xml.etree.ElementTree import Element  # noqa: S405  # nosec B405 - type hints only
 
 import defusedxml.ElementTree as ET  # noqa: N817
 import httpx
