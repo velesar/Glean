@@ -150,15 +150,196 @@ def scout_reddit(subreddit, limit, no_comments, demo):
         console.print(f"[red]Error:[/red] {e}")
 
 
+@scout.command(name="twitter")
+@click.option("--query", "-q", multiple=True, help="Custom search query")
+@click.option("--limit", "-l", default=100, help="Max results per query")
+@click.option("--demo", is_flag=True, help="Use sample data (no Twitter API needed)")
+def scout_twitter(query, limit, demo):
+    """Scout Twitter/X for AI tool mentions.
+
+    Requires Twitter API Bearer token in config.yaml, or use --demo for testing.
+    """
+    from src.scouts.twitter import run_twitter_scout
+    from src.config import load_config
+
+    db = get_db()
+    db.init_schema()
+
+    app_config = load_config()
+    twitter_creds = app_config.get('api_keys', {}).get('twitter', {})
+
+    config = {
+        'twitter': twitter_creds,
+        'max_results': limit,
+        'demo': demo,
+    }
+    if query:
+        config['search_queries'] = list(query)
+
+    console.print("[bold blue]Starting Twitter scout...[/bold blue]")
+    if demo:
+        console.print("  Mode: [yellow]Demo (sample data)[/yellow]")
+    else:
+        console.print(f"  Max results: {limit}")
+    console.print()
+
+    try:
+        saved, skipped = run_twitter_scout(db, config)
+        console.print()
+        console.print(f"[green]✓[/green] Scout complete: {saved} new discoveries, {skipped} duplicates skipped")
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+
+
+@scout.command(name="producthunt")
+@click.option("--days", "-d", default=7, help="Days back to search")
+@click.option("--min-votes", "-v", default=10, help="Minimum vote count")
+@click.option("--demo", is_flag=True, help="Use sample data (no API needed)")
+def scout_producthunt(days, min_votes, demo):
+    """Scout Product Hunt for AI tool launches.
+
+    Requires Product Hunt API credentials in config.yaml, or use --demo for testing.
+    """
+    from src.scouts.producthunt import run_producthunt_scout
+    from src.config import load_config
+
+    db = get_db()
+    db.init_schema()
+
+    app_config = load_config()
+    ph_creds = app_config.get('api_keys', {}).get('producthunt', {})
+
+    config = {
+        'producthunt': ph_creds,
+        'days_back': days,
+        'min_votes': min_votes,
+        'demo': demo,
+    }
+
+    console.print("[bold blue]Starting Product Hunt scout...[/bold blue]")
+    if demo:
+        console.print("  Mode: [yellow]Demo (sample data)[/yellow]")
+    else:
+        console.print(f"  Days back: {days}")
+        console.print(f"  Min votes: {min_votes}")
+    console.print()
+
+    try:
+        saved, skipped = run_producthunt_scout(db, config)
+        console.print()
+        console.print(f"[green]✓[/green] Scout complete: {saved} new discoveries, {skipped} duplicates skipped")
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+
+
+@scout.command(name="web")
+@click.option("--query", "-q", multiple=True, help="Custom search query")
+@click.option("--results", "-r", default=10, help="Results per query")
+@click.option("--demo", is_flag=True, help="Use sample data (no API needed)")
+def scout_web(query, results, demo):
+    """Scout web search for AI tool mentions.
+
+    Requires SerpAPI or Google Custom Search credentials, or use --demo for testing.
+    """
+    from src.scouts.websearch import run_websearch_scout
+    from src.config import load_config
+
+    db = get_db()
+    db.init_schema()
+
+    app_config = load_config()
+    serpapi_creds = app_config.get('api_keys', {}).get('serpapi', {})
+    google_creds = app_config.get('api_keys', {}).get('google', {})
+
+    config = {
+        'serpapi': serpapi_creds,
+        'google': google_creds,
+        'results_per_query': results,
+        'demo': demo,
+    }
+    if query:
+        config['search_queries'] = list(query)
+
+    console.print("[bold blue]Starting Web Search scout...[/bold blue]")
+    if demo:
+        console.print("  Mode: [yellow]Demo (sample data)[/yellow]")
+    else:
+        console.print(f"  Results per query: {results}")
+    console.print()
+
+    try:
+        saved, skipped = run_websearch_scout(db, config)
+        console.print()
+        console.print(f"[green]✓[/green] Scout complete: {saved} new discoveries, {skipped} duplicates skipped")
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+
+
+@scout.command(name="rss")
+@click.option("--feed", "-f", multiple=True, help="RSS feed URL to scout")
+@click.option("--days", "-d", default=7, help="Max age of items in days")
+@click.option("--demo", is_flag=True, help="Use sample data (no feeds fetched)")
+def scout_rss(feed, days, demo):
+    """Scout RSS feeds for AI tool mentions.
+
+    Uses default curated feeds, or specify custom feeds with -f.
+    No API authentication required.
+    """
+    from src.scouts.rss import run_rss_scout
+
+    db = get_db()
+    db.init_schema()
+
+    config = {
+        'max_age_days': days,
+        'demo': demo,
+    }
+    if feed:
+        config['feeds'] = [{'name': f, 'url': f, 'category': 'custom'} for f in feed]
+
+    console.print("[bold blue]Starting RSS scout...[/bold blue]")
+    if demo:
+        console.print("  Mode: [yellow]Demo (sample data)[/yellow]")
+    else:
+        console.print(f"  Max age: {days} days")
+        if feed:
+            console.print(f"  Custom feeds: {len(feed)}")
+        else:
+            console.print("  Using default feeds")
+    console.print()
+
+    try:
+        saved, skipped = run_rss_scout(db, config)
+        console.print()
+        console.print(f"[green]✓[/green] Scout complete: {saved} new discoveries, {skipped} duplicates skipped")
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+
+
 @scout.command(name="all")
+@click.option("--demo", is_flag=True, help="Use demo mode for all scouts")
 @click.pass_context
-def scout_all(ctx):
+def scout_all(ctx, demo):
     """Run all configured scouts."""
     console.print("[bold]Running all scouts...[/bold]")
     console.print()
 
-    # Run Reddit scout
-    ctx.invoke(scout_reddit)
+    # Run all scouts
+    scouts = [
+        ('Reddit', scout_reddit),
+        ('Twitter', scout_twitter),
+        ('Product Hunt', scout_producthunt),
+        ('Web Search', scout_web),
+        ('RSS', scout_rss),
+    ]
+
+    for name, scout_cmd in scouts:
+        console.print(f"[bold cyan]═══ {name} ═══[/bold cyan]")
+        try:
+            ctx.invoke(scout_cmd, demo=demo)
+        except Exception as e:
+            console.print(f"[red]Error running {name} scout:[/red] {e}")
+        console.print()
 
 
 @main.command()

@@ -157,6 +157,7 @@ class Database:
             ("web_search", None, "medium"),
             ("twitter", "https://twitter.com", "medium"),
             ("hackernews", "https://news.ycombinator.com", "medium"),
+            ("rss", None, "medium"),
         ]
         for name, url, reliability in default_sources:
             conn.execute(
