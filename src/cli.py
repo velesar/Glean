@@ -218,9 +218,45 @@ def analyze(limit, mock):
 
 
 @main.command()
-def curate():
-    """Run AI curation on analyzed tools."""
-    console.print("[yellow]Curator not yet implemented[/yellow]")
+@click.option("--min-score", "-m", default=0.3, help="Minimum relevance score for review queue")
+@click.option("--no-merge", is_flag=True, help="Don't auto-merge duplicates")
+@click.option("--max-queue", default=50, help="Max tools in review queue")
+def curate(min_score, no_merge, max_queue):
+    """Run AI curation: score tools, deduplicate, and build review queue."""
+    from src.curator import run_curation, get_scoring_details
+
+    db = get_db()
+
+    # Check for tools to curate
+    tools = db.get_tools_by_status('analyzing')
+    if not tools:
+        console.print("[green]✓[/green] No tools to curate")
+        return
+
+    console.print(f"[bold blue]Curating {len(tools)} tools...[/bold blue]")
+    console.print(f"  Min relevance score: {min_score}")
+    console.print(f"  Auto-merge duplicates: {not no_merge}")
+    console.print()
+
+    result = run_curation(
+        db,
+        min_relevance=min_score,
+        auto_merge_duplicates=not no_merge,
+        max_review_queue=max_queue
+    )
+
+    console.print(f"[green]✓[/green] Curation complete:")
+    console.print(f"    Tools scored: {result.tools_scored}")
+    console.print(f"    Promoted to review: [green]{result.tools_promoted}[/green]")
+    if result.tools_below_threshold:
+        console.print(f"    Below threshold: [yellow]{result.tools_below_threshold}[/yellow]")
+    if result.duplicates_found:
+        console.print(f"    Duplicates found: {result.duplicates_found}")
+        if result.duplicates_merged:
+            console.print(f"    Duplicates merged: {result.duplicates_merged}")
+    console.print()
+    console.print(f"    Score range: {result.min_score:.2f} - {result.max_score:.2f}")
+    console.print(f"    Average score: {result.avg_score:.2f}")
 
 
 @main.command()

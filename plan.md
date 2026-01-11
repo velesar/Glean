@@ -114,20 +114,20 @@ Extract structured data and verify claims.
 AI-driven ranking and queue management.
 
 ### 3.1 Relevance Scoring
-- [ ] Define relevance criteria for sales automation
-- [ ] Implement scoring model (LLM-based or rule-based)
-- [ ] Weight by source reliability and claim confidence
-- [ ] Rank tools in review queue
+- [x] Define relevance criteria for sales automation
+- [x] Implement scoring model (keyword + category based)
+- [x] Weight by claim count and confidence
+- [x] Rank tools in review queue by score
 
 ### 3.2 Deduplication
-- [ ] Detect duplicate tool entries (fuzzy matching)
-- [ ] Merge claims from duplicate sources
-- [ ] Maintain canonical tool record
+- [x] Detect duplicate tool entries (fuzzy matching)
+- [x] Merge claims from duplicate sources
+- [x] Maintain canonical tool record
 
 ### 3.3 Review Queue
-- [ ] Prioritize queue by relevance score
+- [x] Prioritize queue by relevance score
+- [x] Configurable min score threshold
 - [ ] Track time-in-queue
-- [ ] Implement queue statistics
 
 ---
 
