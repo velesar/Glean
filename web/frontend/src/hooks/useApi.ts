@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import * as api from '../api'
+import type { ScoutType } from '../types'
 
 export function useStats() {
   return useQuery({
@@ -55,10 +56,59 @@ export function useJobs() {
   return useQuery({
     queryKey: ['jobs'],
     queryFn: api.getJobs,
-    refetchInterval: 5000,
+    refetchInterval: 3000,
   })
 }
 
+export function useScoutTypes() {
+  return useQuery({
+    queryKey: ['scout-types'],
+    queryFn: api.getScoutTypes,
+    staleTime: 60000, // Cache for 1 minute
+  })
+}
+
+export function useStartScoutJob() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (options: api.ScoutJobOptions) => api.startScoutJob(options),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['jobs'] })
+    },
+  })
+}
+
+export function useStartAnalyzeJob() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (options?: api.AnalyzeJobOptions) => api.startAnalyzeJob(options),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['jobs'] })
+    },
+  })
+}
+
+export function useStartCurateJob() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (options?: api.CurateJobOptions) => api.startCurateJob(options),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['jobs'] })
+    },
+  })
+}
+
+export function useStartUpdateJob() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => api.startUpdateJob(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['jobs'] })
+    },
+  })
+}
+
+// Legacy hook for backwards compatibility
 export function useStartJob() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -67,7 +117,7 @@ export function useStartJob() {
       options,
     }: {
       type: 'scout' | 'analyze' | 'curate' | 'update'
-      options?: { demo?: boolean; source?: string }
+      options?: { demo?: boolean; scout_type?: ScoutType }
     }) => api.startJob(type, options),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['jobs'] })

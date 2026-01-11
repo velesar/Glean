@@ -54,14 +54,27 @@ export interface Claim {
   extracted_at: string
 }
 
+export type ScoutType = 'reddit' | 'twitter' | 'producthunt' | 'web' | 'rss' | 'all'
+
+export interface ScoutTypeInfo {
+  id: ScoutType
+  name: string
+  description: string
+  icon: string
+  requires_api: boolean
+}
+
 export interface Job {
   id: string
   type: 'scout' | 'analyze' | 'curate' | 'update'
-  status: 'pending' | 'running' | 'completed' | 'failed'
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
   progress: number
   message: string | null
+  result: Record<string, unknown> | null
   started_at: string
   completed_at: string | null
+  error: string | null
+  scout_type: ScoutType | null
 }
 
 export interface ActivityItem {

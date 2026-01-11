@@ -1,6 +1,6 @@
 // API client functions
 
-import type { PipelineStats, Tool, Claim, Job, User, AuthToken, SetupStatus, AllSettings } from './types'
+import type { PipelineStats, Tool, Claim, Job, User, AuthToken, SetupStatus, AllSettings, ScoutType, ScoutTypeInfo } from './types'
 
 const API_BASE = '/api'
 const TOKEN_KEY = 'glean_token'
@@ -164,14 +164,81 @@ export async function getJobs(): Promise<{ jobs: Job[] }> {
   return fetchJson<{ jobs: Job[] }>('/jobs')
 }
 
-export async function startJob(
-  type: 'scout' | 'analyze' | 'curate' | 'update',
-  options?: { demo?: boolean; source?: string }
+export async function getScoutTypes(): Promise<{ scout_types: ScoutTypeInfo[] }> {
+  return fetchJson<{ scout_types: ScoutTypeInfo[] }>('/jobs/scout-types')
+}
+
+export interface ScoutJobOptions {
+  scout_type: ScoutType
+  demo?: boolean
+  limit?: number
+  subreddits?: string[]
+  queries?: string[]
+  days_back?: number
+  min_votes?: number
+  results_per_query?: number
+  feeds?: string[]
+  max_age_days?: number
+}
+
+export interface AnalyzeJobOptions {
+  mock?: boolean
+  limit?: number
+}
+
+export interface CurateJobOptions {
+  min_score?: number
+  auto_merge?: boolean
+}
+
+export async function startScoutJob(
+  options: ScoutJobOptions
+): Promise<{ job_id: string; status: string; scout_type: ScoutType }> {
+  return fetchJson<{ job_id: string; status: string; scout_type: ScoutType }>('/jobs/scout', {
+    method: 'POST',
+    body: JSON.stringify(options),
+  })
+}
+
+export async function startAnalyzeJob(
+  options?: AnalyzeJobOptions
 ): Promise<{ job_id: string; status: string }> {
-  return fetchJson<{ job_id: string; status: string }>(`/jobs/${type}`, {
+  return fetchJson<{ job_id: string; status: string }>('/jobs/analyze', {
     method: 'POST',
     body: JSON.stringify(options || {}),
   })
+}
+
+export async function startCurateJob(
+  options?: CurateJobOptions
+): Promise<{ job_id: string; status: string }> {
+  return fetchJson<{ job_id: string; status: string }>('/jobs/curate', {
+    method: 'POST',
+    body: JSON.stringify(options || {}),
+  })
+}
+
+export async function startUpdateJob(): Promise<{ job_id: string; status: string }> {
+  return fetchJson<{ job_id: string; status: string }>('/jobs/update', {
+    method: 'POST',
+    body: JSON.stringify({}),
+  })
+}
+
+// Legacy function for backwards compatibility
+export async function startJob(
+  type: 'scout' | 'analyze' | 'curate' | 'update',
+  options?: { demo?: boolean; scout_type?: ScoutType }
+): Promise<{ job_id: string; status: string }> {
+  if (type === 'scout') {
+    return startScoutJob({ scout_type: options?.scout_type || 'reddit', demo: options?.demo })
+  } else if (type === 'analyze') {
+    return startAnalyzeJob({ mock: options?.demo })
+  } else if (type === 'curate') {
+    return startCurateJob()
+  } else {
+    return startUpdateJob()
+  }
 }
 
 export async function cancelJob(id: string): Promise<void> {

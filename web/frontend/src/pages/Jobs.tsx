@@ -1,21 +1,196 @@
-import { useJobs, useStartJob, useCancelJob } from '../hooks/useApi'
+import { useState } from 'react'
+import {
+  useJobs,
+  useScoutTypes,
+  useStartScoutJob,
+  useStartAnalyzeJob,
+  useStartCurateJob,
+  useStartUpdateJob,
+  useCancelJob,
+} from '../hooks/useApi'
+import type { ScoutType, Job } from '../types'
+
+// Scout type icons (using simple text/emoji representations)
+const SCOUT_ICONS: Record<string, string> = {
+  reddit: '📱',
+  twitter: '🐦',
+  producthunt: '🚀',
+  web: '🔍',
+  rss: '📡',
+  all: '🌐',
+  globe: '🌐',
+  search: '🔍',
+}
+
+function ScoutCard({
+  id,
+  name,
+  description,
+  icon,
+  requires_api,
+  onRun,
+  isPending,
+}: {
+  id: ScoutType
+  name: string
+  description: string
+  icon: string
+  requires_api: boolean
+  onRun: (scoutType: ScoutType, demo: boolean) => void
+  isPending: boolean
+}) {
+  const [demoMode, setDemoMode] = useState(true)
+
+  return (
+    <div className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow">
+      <div className="flex items-start justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <span className="text-2xl">{SCOUT_ICONS[icon] || SCOUT_ICONS[id] || '📋'}</span>
+          <div>
+            <h3 className="font-semibold text-gray-900">{name}</h3>
+            <p className="text-sm text-gray-500">{description}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between mt-4">
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={demoMode}
+            onChange={(e) => setDemoMode(e.target.checked)}
+            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+          />
+          <span className="text-gray-600">Demo mode</span>
+          {requires_api && !demoMode && (
+            <span className="text-xs text-amber-600">(requires API key)</span>
+          )}
+        </label>
+
+        <button
+          onClick={() => onRun(id, demoMode)}
+          disabled={isPending}
+          className="px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
+        >
+          Run
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function JobCard({ job, onCancel }: { job: Job; onCancel: () => void }) {
+  const statusColors: Record<string, string> = {
+    pending: 'bg-gray-100 text-gray-700',
+    running: 'bg-blue-100 text-blue-700',
+    completed: 'bg-green-100 text-green-700',
+    failed: 'bg-red-100 text-red-700',
+    cancelled: 'bg-gray-100 text-gray-500',
+  }
+
+  const statusDots: Record<string, string> = {
+    pending: 'bg-gray-400',
+    running: 'bg-blue-500 animate-pulse',
+    completed: 'bg-green-500',
+    failed: 'bg-red-500',
+    cancelled: 'bg-gray-400',
+  }
+
+  const jobLabel =
+    job.type === 'scout' && job.scout_type
+      ? `Scout: ${job.scout_type}`
+      : job.type.charAt(0).toUpperCase() + job.type.slice(1)
+
+  return (
+    <div className="bg-white rounded-lg border border-gray-200 p-4">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-3">
+          <span className={`w-2 h-2 rounded-full ${statusDots[job.status]}`} />
+          <span className="font-medium text-gray-900">{jobLabel}</span>
+          <span
+            className={`px-2 py-0.5 text-xs font-medium rounded-full ${statusColors[job.status]}`}
+          >
+            {job.status}
+          </span>
+        </div>
+        <div className="flex items-center gap-3">
+          {job.status === 'running' && (
+            <>
+              <span className="text-sm text-blue-600 font-medium">{job.progress}%</span>
+              <button
+                onClick={onCancel}
+                className="px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded transition-colors"
+              >
+                Cancel
+              </button>
+            </>
+          )}
+          <span className="text-xs text-gray-400">
+            {job.started_at && new Date(job.started_at).toLocaleTimeString()}
+          </span>
+        </div>
+      </div>
+
+      {job.status === 'running' && (
+        <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
+          <div
+            className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
+            style={{ width: `${job.progress}%` }}
+          />
+        </div>
+      )}
+
+      {job.message && (
+        <p className={`text-sm mt-2 ${job.status === 'failed' ? 'text-red-600' : 'text-gray-500'}`}>
+          {job.message}
+        </p>
+      )}
+
+      {job.error && job.status === 'failed' && (
+        <p className="text-sm text-red-600 mt-1 font-mono bg-red-50 p-2 rounded">{job.error}</p>
+      )}
+
+      {job.result && job.status === 'completed' && (
+        <div className="text-sm text-gray-500 mt-2 flex gap-4">
+          {Object.entries(job.result).map(([key, value]) => (
+            <span key={key}>
+              <span className="text-gray-400">{key.replace('_', ' ')}:</span>{' '}
+              <span className="font-medium text-gray-700">{String(value)}</span>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export function Jobs() {
-  const { data: jobsData, isLoading } = useJobs()
-  const startJob = useStartJob()
+  const { data: jobsData, isLoading: jobsLoading } = useJobs()
+  const { data: scoutTypesData, isLoading: scoutTypesLoading } = useScoutTypes()
+
+  const startScoutJob = useStartScoutJob()
+  const startAnalyzeJob = useStartAnalyzeJob()
+  const startCurateJob = useStartCurateJob()
+  const startUpdateJob = useStartUpdateJob()
   const cancelJob = useCancelJob()
 
   const jobs = jobsData?.jobs || []
-  const runningJobs = jobs.filter((j) => j.status === 'running')
-  const completedJobs = jobs.filter((j) => j.status === 'completed')
-  const failedJobs = jobs.filter((j) => j.status === 'failed')
+  const scoutTypes = scoutTypesData?.scout_types || []
 
-  const handleStartJob = (type: 'scout' | 'analyze' | 'curate' | 'update') => {
-    const options = type === 'scout' ? { demo: true } : undefined
-    startJob.mutate({ type, options })
+  const runningJobs = jobs.filter((j) => j.status === 'running' || j.status === 'pending')
+  const recentJobs = jobs.filter((j) => j.status !== 'running' && j.status !== 'pending')
+
+  const handleRunScout = (scoutType: ScoutType, demo: boolean) => {
+    startScoutJob.mutate({ scout_type: scoutType, demo })
   }
 
-  if (isLoading) {
+  const isAnyJobPending =
+    startScoutJob.isPending ||
+    startAnalyzeJob.isPending ||
+    startCurateJob.isPending ||
+    startUpdateJob.isPending
+
+  if (jobsLoading || scoutTypesLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-gray-500">Loading...</div>
@@ -29,156 +204,118 @@ export function Jobs() {
         <h1 className="text-2xl font-bold text-gray-900">Jobs</h1>
       </div>
 
-      {/* Start Job Buttons */}
+      {/* Scout Sources */}
       <section>
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Start New Job</h2>
-        <div className="flex gap-3 flex-wrap">
-          <button
-            onClick={() => handleStartJob('scout')}
-            disabled={startJob.isPending}
-            className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
-          >
-            Scout (Demo)
-          </button>
-          <button
-            onClick={() => handleStartJob('analyze')}
-            disabled={startJob.isPending}
-            className="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-md hover:bg-purple-700 disabled:opacity-50 transition-colors"
-          >
-            Analyze
-          </button>
-          <button
-            onClick={() => handleStartJob('curate')}
-            disabled={startJob.isPending}
-            className="px-4 py-2 bg-yellow-600 text-white text-sm font-medium rounded-md hover:bg-yellow-700 disabled:opacity-50 transition-colors"
-          >
-            Curate
-          </button>
-          <button
-            onClick={() => handleStartJob('update')}
-            disabled={startJob.isPending}
-            className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 disabled:opacity-50 transition-colors"
-          >
-            Update Check
-          </button>
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Scout Sources</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {scoutTypes.map((scout) => (
+            <ScoutCard
+              key={scout.id}
+              {...scout}
+              onRun={handleRunScout}
+              isPending={isAnyJobPending}
+            />
+          ))}
         </div>
       </section>
 
-      {/* Running Jobs */}
+      {/* Pipeline Actions */}
       <section>
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">
-          Running Jobs ({runningJobs.length})
-        </h2>
-        {runningJobs.length === 0 ? (
-          <div className="bg-white rounded-lg border border-gray-200 p-4 text-gray-500 text-center">
-            No jobs currently running
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {runningJobs.map((job) => (
-              <div
-                key={job.id}
-                className="bg-white rounded-lg border border-gray-200 p-4"
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Pipeline Actions</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-white rounded-lg border border-gray-200 p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-2xl">🔬</span>
+              <div>
+                <h3 className="font-semibold text-gray-900">Analyze</h3>
+                <p className="text-sm text-gray-500">Extract tools and claims from discoveries</p>
+              </div>
+            </div>
+            <div className="flex items-center justify-between mt-4">
+              <span className="text-xs text-gray-400">Uses Claude API (or mock mode)</span>
+              <button
+                onClick={() => startAnalyzeJob.mutate({ mock: true, limit: 10 })}
+                disabled={isAnyJobPending}
+                className="px-3 py-1.5 bg-purple-600 text-white text-sm font-medium rounded-md hover:bg-purple-700 disabled:opacity-50 transition-colors"
               >
-                <div className="flex justify-between items-center mb-2">
-                  <div>
-                    <span className="font-medium text-gray-900 capitalize">
-                      {job.type}
-                    </span>
-                    <span className="text-sm text-gray-500 ml-2">
-                      Started: {new Date(job.started_at).toLocaleTimeString()}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm text-blue-600 font-medium">
-                      {job.progress}%
-                    </span>
-                    <button
-                      onClick={() => cancelJob.mutate(job.id)}
-                      className="px-3 py-1 text-sm text-red-600 hover:bg-red-50 rounded transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div
-                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${job.progress}%` }}
-                  />
-                </div>
-                {job.message && (
-                  <p className="text-sm text-gray-500 mt-2">{job.message}</p>
-                )}
-              </div>
-            ))}
+                Run
+              </button>
+            </div>
           </div>
-        )}
+
+          <div className="bg-white rounded-lg border border-gray-200 p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-2xl">📊</span>
+              <div>
+                <h3 className="font-semibold text-gray-900">Curate</h3>
+                <p className="text-sm text-gray-500">Score and rank tools for review</p>
+              </div>
+            </div>
+            <div className="flex items-center justify-between mt-4">
+              <span className="text-xs text-gray-400">Moves tools to review queue</span>
+              <button
+                onClick={() => startCurateJob.mutate({})}
+                disabled={isAnyJobPending}
+                className="px-3 py-1.5 bg-yellow-600 text-white text-sm font-medium rounded-md hover:bg-yellow-700 disabled:opacity-50 transition-colors"
+              >
+                Run
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg border border-gray-200 p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-2xl">🔄</span>
+              <div>
+                <h3 className="font-semibold text-gray-900">Update Check</h3>
+                <p className="text-sm text-gray-500">Check approved tools for changes</p>
+              </div>
+            </div>
+            <div className="flex items-center justify-between mt-4">
+              <span className="text-xs text-gray-400">Detects pricing/feature changes</span>
+              <button
+                onClick={() => startUpdateJob.mutate()}
+                disabled={isAnyJobPending}
+                className="px-3 py-1.5 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 disabled:opacity-50 transition-colors"
+              >
+                Run
+              </button>
+            </div>
+          </div>
+        </div>
       </section>
 
-      {/* Completed Jobs */}
-      <section>
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">
-          Completed Jobs ({completedJobs.length})
-        </h2>
-        {completedJobs.length === 0 ? (
-          <div className="bg-white rounded-lg border border-gray-200 p-4 text-gray-500 text-center">
-            No completed jobs
-          </div>
-        ) : (
-          <div className="bg-white rounded-lg border border-gray-200 divide-y divide-gray-100">
-            {completedJobs.slice(0, 10).map((job) => (
-              <div key={job.id} className="p-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="w-2 h-2 rounded-full bg-green-500" />
-                  <span className="font-medium text-gray-900 capitalize">
-                    {job.type}
-                  </span>
-                </div>
-                <div className="flex items-center gap-4">
-                  {job.message && (
-                    <span className="text-sm text-gray-500">{job.message}</span>
-                  )}
-                  <span className="text-sm text-gray-400">
-                    {job.completed_at
-                      ? new Date(job.completed_at).toLocaleString()
-                      : ''}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* Failed Jobs */}
-      {failedJobs.length > 0 && (
+      {/* Active Jobs */}
+      {runningJobs.length > 0 && (
         <section>
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            Failed Jobs ({failedJobs.length})
+            Active Jobs ({runningJobs.length})
           </h2>
-          <div className="bg-white rounded-lg border border-red-200 divide-y divide-red-100">
-            {failedJobs.map((job) => (
-              <div key={job.id} className="p-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="w-2 h-2 rounded-full bg-red-500" />
-                  <span className="font-medium text-gray-900 capitalize">
-                    {job.type}
-                  </span>
-                </div>
-                <div className="flex items-center gap-4">
-                  <span className="text-sm text-red-600">{job.message}</span>
-                  <span className="text-sm text-gray-400">
-                    {job.completed_at
-                      ? new Date(job.completed_at).toLocaleString()
-                      : ''}
-                  </span>
-                </div>
-              </div>
+          <div className="space-y-3">
+            {runningJobs.map((job) => (
+              <JobCard key={job.id} job={job} onCancel={() => cancelJob.mutate(job.id)} />
             ))}
           </div>
         </section>
       )}
+
+      {/* Recent Jobs */}
+      <section>
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">
+          Recent Jobs ({recentJobs.length})
+        </h2>
+        {recentJobs.length === 0 ? (
+          <div className="bg-white rounded-lg border border-gray-200 p-8 text-center text-gray-500">
+            No jobs yet. Run a scout to get started!
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {recentJobs.slice(0, 10).map((job) => (
+              <JobCard key={job.id} job={job} onCancel={() => cancelJob.mutate(job.id)} />
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   )
 }
