@@ -84,15 +84,16 @@ Data collection from external sources.
 Extract structured data and verify claims.
 
 ### 2.1 Analyzer Framework
-- [ ] Define Analyzer base class
-- [ ] Implement claim extraction prompt templates
-- [ ] Set up LLM integration (Claude API)
-- [ ] Create confidence scoring system
+- [x] Define Analyzer base class
+- [x] Implement claim extraction prompt templates
+- [x] Set up LLM integration (Claude API)
+- [x] Create confidence scoring system
+- [x] Mock analyzer for testing without API
 
 ### 2.2 Claim Extractor
-- [ ] Extract discrete claims from raw text
-- [ ] Categorize claims (features, pricing, integrations, etc.)
-- [ ] Assign initial confidence based on source reliability
+- [x] Extract discrete claims from raw text
+- [x] Categorize claims (features, pricing, integrations, etc.)
+- [x] Assign initial confidence based on source reliability
 - [ ] Handle multi-source claim aggregation
 
 ### 2.3 Tool Enrichment

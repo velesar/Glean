@@ -162,17 +162,59 @@ def scout_all(ctx):
 
 
 @main.command()
-def analyze():
-    """Process inbox items through analyzers."""
+@click.option("--limit", "-l", default=10, help="Max discoveries to process")
+@click.option("--mock", is_flag=True, help="Use mock analyzer (no API needed)")
+def analyze(limit, mock):
+    """Process discoveries through analyzers to extract tools and claims.
+
+    Uses Claude API by default. Use --mock for testing without API.
+    """
+    from src.analyzers import run_analyzer
+    from src.config import load_config, get_api_key
+
     db = get_db()
-    discoveries = db.get_unprocessed_discoveries()
+    discoveries = db.get_unprocessed_discoveries(limit=limit)
 
     if not discoveries:
         console.print("[green]✓[/green] No unprocessed discoveries")
         return
 
-    console.print(f"[blue]Found {len(discoveries)} unprocessed discoveries[/blue]")
-    console.print("[yellow]Analyzer not yet implemented[/yellow]")
+    console.print(f"[bold blue]Analyzing {len(discoveries)} discoveries...[/bold blue]")
+
+    # Build config
+    config = {'limit': limit}
+
+    if not mock:
+        app_config = load_config()
+        api_key = get_api_key(app_config, 'anthropic')
+        if not api_key:
+            console.print("[yellow]![/yellow] No Anthropic API key found.")
+            console.print("    Set ANTHROPIC_API_KEY env var or add to config.yaml")
+            console.print("    Using mock analyzer instead...")
+            mock = True
+        else:
+            config['api_key'] = api_key
+            config['model'] = app_config.get('analysis', {}).get('model', 'claude-sonnet-4-20250514')
+
+    if mock:
+        console.print("  Mode: [yellow]Mock (pattern matching)[/yellow]")
+    else:
+        console.print(f"  Mode: [green]Claude API[/green] ({config.get('model', 'default')})")
+    console.print()
+
+    try:
+        result = run_analyzer(db, config, use_mock=mock)
+
+        console.print()
+        console.print(f"[green]✓[/green] Analysis complete:")
+        console.print(f"    Processed: {result['processed']} discoveries")
+        console.print(f"    Tools extracted: {result['tools_extracted']}")
+        console.print(f"    Claims extracted: {result['claims_extracted']}")
+        if result['errors']:
+            console.print(f"    [red]Errors: {result['errors']}[/red]")
+
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
 
 
 @main.command()
