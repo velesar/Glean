@@ -86,12 +86,13 @@ class CurateConfig(BaseModel):
     auto_merge: bool = True
 
 
-# In-memory job storage (in production, use Redis or database)
-jobs: dict[str, Job] = {}
+# In-memory cache for active jobs (synced with database)
+_job_cache: dict[str, Job] = {}
 
 
-def create_job(job_type: JobType, scout_type: Optional[str] = None) -> Job:
-    """Create a new job."""
+def create_job(job_type: JobType, scout_type: Optional[str] = None,
+               config: Optional[dict] = None, user_id: Optional[int] = None) -> Job:
+    """Create a new job and persist to database."""
     job_id = str(uuid.uuid4())[:8]
     job = Job(
         id=job_id,
@@ -100,17 +101,63 @@ def create_job(job_type: JobType, scout_type: Optional[str] = None) -> Job:
         started_at=datetime.now().isoformat(),
         scout_type=scout_type,
     )
-    jobs[job_id] = job
+
+    # Persist to database
+    db = get_db()
+    db.create_job(job_id, job_type.value, scout_type, config, user_id)
+
+    # Cache for active job tracking
+    _job_cache[job_id] = job
     return job
+
+
+def get_job_from_db(job_id: str) -> Optional[Job]:
+    """Get job from cache or database."""
+    # Check cache first for active jobs
+    if job_id in _job_cache:
+        return _job_cache[job_id]
+
+    # Load from database
+    db = get_db()
+    job_data = db.get_job(job_id)
+    if job_data:
+        return Job(
+            id=job_data['id'],
+            type=JobType(job_data['type']),
+            status=JobStatus(job_data['status']),
+            progress=job_data['progress'] or 0,
+            message=job_data['message'] or "",
+            result=job_data['result'],
+            started_at=job_data['started_at'],
+            completed_at=job_data['completed_at'],
+            error=job_data['error'],
+            scout_type=job_data['scout_type'],
+        )
+    return None
+
+
+def sync_job_to_db(job: Job) -> None:
+    """Sync job state to database."""
+    db = get_db()
+    db.update_job(
+        job.id,
+        status=job.status.value,
+        progress=job.progress,
+        message=job.message,
+        result=job.result,
+        error=job.error,
+        completed=job.status in (JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED)
+    )
 
 
 async def run_scout_job(job_id: str, config: ScoutConfig):
     """Run scout job in background."""
-    job = jobs.get(job_id)
+    job = _job_cache.get(job_id)
     if not job:
         return
 
     job.status = JobStatus.RUNNING
+    sync_job_to_db(job)
     scout_type = config.scout_type
 
     try:
@@ -130,6 +177,7 @@ async def run_scout_job(job_id: str, config: ScoutConfig):
             for i, st in enumerate(scouts_to_run):
                 job.message = f"Running {st.value} scout..."
                 job.progress = int((i / len(scouts_to_run)) * 90)
+                sync_job_to_db(job)
 
                 saved, skipped = run_single_scout(db, st, config)
                 total_saved += saved
@@ -138,6 +186,7 @@ async def run_scout_job(job_id: str, config: ScoutConfig):
         else:
             job.message = f"Running {scout_type.value} scout..."
             job.progress = 10
+            sync_job_to_db(job)
 
             total_saved, total_skipped = run_single_scout(db, scout_type, config)
 
@@ -146,12 +195,17 @@ async def run_scout_job(job_id: str, config: ScoutConfig):
         job.message = f"Completed: {total_saved} discoveries, {total_skipped} duplicates"
         job.result = {"saved": total_saved, "skipped": total_skipped}
         job.completed_at = datetime.now().isoformat()
+        sync_job_to_db(job)
 
     except Exception as e:
         job.status = JobStatus.FAILED
         job.error = str(e)
         job.message = f"Failed: {str(e)}"
         job.completed_at = datetime.now().isoformat()
+        sync_job_to_db(job)
+    finally:
+        # Remove from cache when done
+        _job_cache.pop(job_id, None)
 
 
 def run_single_scout(db, scout_type: ScoutType, config: ScoutConfig) -> tuple[int, int]:
@@ -201,12 +255,13 @@ def run_single_scout(db, scout_type: ScoutType, config: ScoutConfig) -> tuple[in
 
 async def run_analyze_job(job_id: str, config: AnalyzeConfig):
     """Run analyzer job in background."""
-    job = jobs.get(job_id)
+    job = _job_cache.get(job_id)
     if not job:
         return
 
     job.status = JobStatus.RUNNING
     job.message = "Starting analyzer..."
+    sync_job_to_db(job)
 
     try:
         from src.analyzers import run_analyzer
@@ -219,6 +274,7 @@ async def run_analyze_job(job_id: str, config: AnalyzeConfig):
 
         job.progress = 10
         job.message = "Analyzing discoveries..."
+        sync_job_to_db(job)
 
         result = run_analyzer(db, analyzer_config, use_mock=config.mock)
 
@@ -232,22 +288,27 @@ async def run_analyze_job(job_id: str, config: AnalyzeConfig):
             "errors": result['errors'],
         }
         job.completed_at = datetime.now().isoformat()
+        sync_job_to_db(job)
 
     except Exception as e:
         job.status = JobStatus.FAILED
         job.error = str(e)
         job.message = f"Failed: {str(e)}"
         job.completed_at = datetime.now().isoformat()
+        sync_job_to_db(job)
+    finally:
+        _job_cache.pop(job_id, None)
 
 
 async def run_curate_job(job_id: str, config: CurateConfig):
     """Run curation job in background."""
-    job = jobs.get(job_id)
+    job = _job_cache.get(job_id)
     if not job:
         return
 
     job.status = JobStatus.RUNNING
     job.message = "Starting curation..."
+    sync_job_to_db(job)
 
     try:
         from src.curator import run_curation
@@ -256,6 +317,7 @@ async def run_curate_job(job_id: str, config: CurateConfig):
 
         job.progress = 10
         job.message = "Scoring and ranking tools..."
+        sync_job_to_db(job)
 
         result = run_curation(
             db,
@@ -273,22 +335,27 @@ async def run_curate_job(job_id: str, config: CurateConfig):
             "avg_score": round(result.avg_score, 2),
         }
         job.completed_at = datetime.now().isoformat()
+        sync_job_to_db(job)
 
     except Exception as e:
         job.status = JobStatus.FAILED
         job.error = str(e)
         job.message = f"Failed: {str(e)}"
         job.completed_at = datetime.now().isoformat()
+        sync_job_to_db(job)
+    finally:
+        _job_cache.pop(job_id, None)
 
 
 async def run_update_job(job_id: str):
     """Run update check job in background."""
-    job = jobs.get(job_id)
+    job = _job_cache.get(job_id)
     if not job:
         return
 
     job.status = JobStatus.RUNNING
     job.message = "Checking for updates..."
+    sync_job_to_db(job)
 
     try:
         from src.tracker import run_update_check
@@ -297,6 +364,7 @@ async def run_update_job(job_id: str):
 
         job.progress = 10
         job.message = "Fetching tool pages..."
+        sync_job_to_db(job)
 
         result = run_update_check(db)
 
@@ -308,24 +376,46 @@ async def run_update_job(job_id: str):
             "changes_detected": result['changes_detected'],
         }
         job.completed_at = datetime.now().isoformat()
+        sync_job_to_db(job)
 
     except Exception as e:
         job.status = JobStatus.FAILED
         job.error = str(e)
         job.message = f"Failed: {str(e)}"
         job.completed_at = datetime.now().isoformat()
+        sync_job_to_db(job)
+    finally:
+        _job_cache.pop(job_id, None)
 
 
 @router.get("")
-async def list_jobs(limit: int = 20, current_user: dict = Depends(get_current_user)):
-    """List recent jobs."""
-    sorted_jobs = sorted(
-        jobs.values(),
-        key=lambda j: j.started_at or "",
-        reverse=True
-    )[:limit]
+async def list_jobs(
+    limit: int = 20,
+    status: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """List recent jobs from database."""
+    db = get_db()
+    job_list = db.list_jobs(limit=limit, status=status)
 
-    return {"jobs": [j.model_dump() for j in sorted_jobs]}
+    # Merge with active cache jobs (in case db hasn't synced yet)
+    result = []
+    seen_ids = set()
+
+    # Add active jobs from cache first (most recent state)
+    for job in _job_cache.values():
+        result.append(job.model_dump())
+        seen_ids.add(job.id)
+
+    # Add database jobs not in cache
+    for job_data in job_list:
+        if job_data['id'] not in seen_ids:
+            result.append(job_data)
+
+    # Sort by started_at
+    result.sort(key=lambda j: j.get('started_at') or '', reverse=True)
+
+    return {"jobs": result[:limit]}
 
 
 @router.get("/scout-types")
@@ -382,7 +472,7 @@ async def get_scout_types(current_user: dict = Depends(get_current_user)):
 @router.get("/{job_id}")
 async def get_job(job_id: str, current_user: dict = Depends(get_current_user)):
     """Get job status."""
-    job = jobs.get(job_id)
+    job = get_job_from_db(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     return job.model_dump()
@@ -438,13 +528,30 @@ async def start_update(
 @router.delete("/{job_id}")
 async def cancel_job(job_id: str, current_user: dict = Depends(get_current_user)):
     """Cancel a running job."""
-    job = jobs.get(job_id)
+    # Check cache first for active jobs
+    job = _job_cache.get(job_id)
+    if job:
+        if job.status == JobStatus.RUNNING:
+            job.status = JobStatus.CANCELLED
+            job.message = "Cancelled by user"
+            job.completed_at = datetime.now().isoformat()
+            sync_job_to_db(job)
+            _job_cache.pop(job_id, None)
+        return {"success": True, "status": job.status.value}
+
+    # Check database
+    job = get_job_from_db(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
     if job.status == JobStatus.RUNNING:
+        db = get_db()
+        db.update_job(
+            job_id,
+            status="cancelled",
+            message="Cancelled by user",
+            completed=True
+        )
         job.status = JobStatus.CANCELLED
-        job.message = "Cancelled by user"
-        job.completed_at = datetime.now().isoformat()
 
-    return {"success": True, "status": job.status}
+    return {"success": True, "status": job.status.value}

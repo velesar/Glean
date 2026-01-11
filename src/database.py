@@ -491,6 +491,115 @@ class Database:
         conn.commit()
         return cursor.rowcount
 
+    # --- Job Operations ---
+
+    def create_job(self, job_id: str, job_type: str, scout_type: Optional[str] = None,
+                   config: Optional[dict] = None, user_id: Optional[int] = None) -> str:
+        """Create a new job record."""
+        conn = self.connect()
+        conn.execute(
+            """INSERT INTO jobs (id, type, status, scout_type, config, user_id)
+               VALUES (?, ?, 'pending', ?, ?, ?)""",
+            (job_id, job_type, scout_type, json.dumps(config) if config else None, user_id)
+        )
+        conn.commit()
+        return job_id
+
+    def get_job(self, job_id: str) -> Optional[dict]:
+        """Get a job by ID."""
+        conn = self.connect()
+        row = conn.execute(
+            "SELECT * FROM jobs WHERE id = ?", (job_id,)
+        ).fetchone()
+        if row:
+            job = dict(row)
+            # Parse JSON fields
+            if job.get('result'):
+                job['result'] = json.loads(job['result'])
+            if job.get('config'):
+                job['config'] = json.loads(job['config'])
+            return job
+        return None
+
+    def update_job(self, job_id: str, status: Optional[str] = None,
+                   progress: Optional[int] = None, message: Optional[str] = None,
+                   result: Optional[dict] = None, error: Optional[str] = None,
+                   completed: bool = False) -> None:
+        """Update job status and fields."""
+        conn = self.connect()
+        updates = []
+        params: list = []
+
+        if status is not None:
+            updates.append("status = ?")
+            params.append(status)
+
+        if progress is not None:
+            updates.append("progress = ?")
+            params.append(progress)
+
+        if message is not None:
+            updates.append("message = ?")
+            params.append(message)
+
+        if result is not None:
+            updates.append("result = ?")
+            params.append(json.dumps(result))
+
+        if error is not None:
+            updates.append("error = ?")
+            params.append(error)
+
+        if completed:
+            updates.append("completed_at = CURRENT_TIMESTAMP")
+
+        if updates:
+            params.append(job_id)
+            query = f"UPDATE jobs SET {', '.join(updates)} WHERE id = ?"
+            conn.execute(query, params)
+            conn.commit()
+
+    def list_jobs(self, limit: int = 20, status: Optional[str] = None,
+                  user_id: Optional[int] = None) -> list[dict]:
+        """List jobs with optional filters."""
+        conn = self.connect()
+        query = "SELECT * FROM jobs WHERE 1=1"
+        params: list = []
+
+        if status:
+            query += " AND status = ?"
+            params.append(status)
+
+        if user_id:
+            query += " AND user_id = ?"
+            params.append(user_id)
+
+        query += " ORDER BY started_at DESC LIMIT ?"
+        params.append(limit)
+
+        rows = conn.execute(query, params).fetchall()
+        jobs = []
+        for row in rows:
+            job = dict(row)
+            if job.get('result'):
+                job['result'] = json.loads(job['result'])
+            if job.get('config'):
+                job['config'] = json.loads(job['config'])
+            jobs.append(job)
+        return jobs
+
+    def delete_old_jobs(self, days: int = 7) -> int:
+        """Delete jobs older than specified days. Returns count deleted."""
+        conn = self.connect()
+        cursor = conn.execute(
+            """DELETE FROM jobs
+               WHERE completed_at IS NOT NULL
+               AND completed_at < datetime('now', ?)""",
+            (f'-{days} days',)
+        )
+        conn.commit()
+        return cursor.rowcount
+
     # --- Statistics ---
 
     def get_pipeline_stats(self) -> dict:

@@ -1,6 +1,25 @@
 // API client functions
 
-import type { PipelineStats, Tool, Claim, Job, User, AuthToken, SetupStatus, AllSettings, ScoutType, ScoutTypeInfo } from './types'
+import type {
+  PipelineStats,
+  Tool,
+  ToolDetail,
+  ToolsFilter,
+  ToolsResponse,
+  ToolUpdate,
+  BulkStatusUpdate,
+  BulkStatusResponse,
+  BulkDeleteResponse,
+  ExportFilters,
+  Claim,
+  Job,
+  User,
+  AuthToken,
+  SetupStatus,
+  AllSettings,
+  ScoutType,
+  ScoutTypeInfo
+} from './types'
 
 const API_BASE = '/api'
 const TOKEN_KEY = 'glean_token'
@@ -135,13 +154,34 @@ export async function getStats(): Promise<PipelineStats> {
 }
 
 // Tools
-export async function getTools(status?: string): Promise<{ tools: Tool[]; total: number }> {
-  const params = status ? `?status=${status}` : ''
-  return fetchJson<{ tools: Tool[]; total: number }>(`/tools${params}`)
+export async function getTools(filters?: ToolsFilter): Promise<ToolsResponse> {
+  const params = new URLSearchParams()
+  if (filters) {
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        params.append(key, String(value))
+      }
+    })
+  }
+  const queryString = params.toString()
+  return fetchJson<ToolsResponse>(`/tools${queryString ? `?${queryString}` : ''}`)
 }
 
-export async function getTool(id: number): Promise<Tool> {
-  return fetchJson<Tool>(`/tools/${id}`)
+export async function getTool(id: number): Promise<ToolDetail> {
+  return fetchJson<ToolDetail>(`/tools/${id}`)
+}
+
+export async function updateTool(id: number, update: ToolUpdate): Promise<{ success: boolean; tool: Tool }> {
+  return fetchJson<{ success: boolean; tool: Tool }>(`/tools/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(update),
+  })
+}
+
+export async function deleteTool(id: number): Promise<{ success: boolean }> {
+  return fetchJson<{ success: boolean }>(`/tools/${id}`, {
+    method: 'DELETE',
+  })
 }
 
 export async function updateToolStatus(
@@ -155,8 +195,73 @@ export async function updateToolStatus(
   })
 }
 
+export async function bulkUpdateStatus(update: BulkStatusUpdate): Promise<BulkStatusResponse> {
+  return fetchJson<BulkStatusResponse>('/tools/bulk/status', {
+    method: 'PUT',
+    body: JSON.stringify(update),
+  })
+}
+
+export async function bulkDeleteTools(toolIds: number[]): Promise<BulkDeleteResponse> {
+  return fetchJson<BulkDeleteResponse>(`/tools/bulk?${toolIds.map(id => `tool_ids=${id}`).join('&')}`, {
+    method: 'DELETE',
+  })
+}
+
 export async function getToolClaims(id: number): Promise<{ claims: Claim[] }> {
   return fetchJson<{ claims: Claim[] }>(`/tools/${id}/claims`)
+}
+
+// Export functions
+export function getExportUrl(
+  type: 'tools' | 'claims' | 'all',
+  format: 'json' | 'csv',
+  filters?: ExportFilters
+): string {
+  const params = new URLSearchParams()
+  if (filters) {
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        params.append(key, String(value))
+      }
+    })
+  }
+  const queryString = params.toString()
+  const endpoint = type === 'all' ? '/export/all/json' : `/export/${type}/${format}`
+  return `${API_BASE}${endpoint}${queryString ? `?${queryString}` : ''}`
+}
+
+export async function downloadExport(
+  type: 'tools' | 'claims' | 'all',
+  format: 'json' | 'csv',
+  filters?: ExportFilters
+): Promise<void> {
+  const token = getToken()
+  const url = getExportUrl(type, format, filters)
+
+  const response = await fetch(url, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+
+  if (!response.ok) {
+    throw new ApiError(response.status, 'Export failed')
+  }
+
+  const blob = await response.blob()
+  const contentDisposition = response.headers.get('Content-Disposition')
+  const filename = contentDisposition
+    ?.match(/filename=([^;]+)/)?.[1]
+    ?.replace(/"/g, '') || `glean_export.${format}`
+
+  // Download the file
+  const downloadUrl = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = downloadUrl
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(downloadUrl)
 }
 
 // Jobs
