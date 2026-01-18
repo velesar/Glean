@@ -1,12 +1,23 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import * as api from '../api'
-import type { ScoutType } from '../types'
+import type { Job, ScoutType } from '../types'
 
-export function useStats() {
+// Polling intervals
+const ACTIVE_POLL_INTERVAL = 3000 // 3s when jobs are running
+const IDLE_POLL_INTERVAL = 30000 // 30s when no active jobs
+
+// Helper to check if any jobs are active
+function hasActiveJobs(jobs: Job[] | undefined): boolean {
+  if (!jobs) return false
+  return jobs.some((job) => job.status === 'running' || job.status === 'pending')
+}
+
+export function useStats(hasActiveJobsFlag?: boolean) {
   return useQuery({
     queryKey: ['stats'],
     queryFn: api.getStats,
-    refetchInterval: 10000,
+    // Poll more frequently when jobs are active, otherwise slower
+    refetchInterval: hasActiveJobsFlag ? ACTIVE_POLL_INTERVAL : IDLE_POLL_INTERVAL,
   })
 }
 
@@ -64,7 +75,11 @@ export function useJobs() {
   return useQuery({
     queryKey: ['jobs'],
     queryFn: api.getJobs,
-    refetchInterval: 5000, // 5 seconds - balance between responsiveness and stability
+    // Dynamic polling: fast when jobs are active, slow when idle
+    refetchInterval: (query) => {
+      const jobs = query.state.data?.jobs
+      return hasActiveJobs(jobs) ? ACTIVE_POLL_INTERVAL : IDLE_POLL_INTERVAL
+    },
   })
 }
 

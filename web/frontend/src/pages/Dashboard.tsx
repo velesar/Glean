@@ -3,11 +3,7 @@ import { useStats, useJobs, useStartJob } from '../hooks/useApi'
 import { StatCard } from '../components/StatCard'
 import { JobRow } from '../components/JobRow'
 
-// Default demo mode from environment variable (defaults to true for local dev)
-const DEFAULT_DEMO_MODE = import.meta.env.VITE_DEMO_MODE_DEFAULT !== 'false'
-
 export function Dashboard() {
-  const { data: stats, isLoading: statsLoading } = useStats()
   const { data: jobsData } = useJobs()
   const startJob = useStartJob()
 
@@ -29,22 +25,31 @@ export function Dashboard() {
   // Memoize job lists to prevent unnecessary re-renders
   const jobs = useMemo(() => jobsData?.jobs || [], [jobsData?.jobs])
 
+  // Check if any jobs are active (running or pending)
+  const hasActiveJobs = useMemo(
+    () => jobs.some((j) => j.status === 'running' || j.status === 'pending'),
+    [jobs]
+  )
+
+  // Stats polling is coordinated with job activity
+  const { data: stats, isLoading: statsLoading } = useStats(hasActiveJobs)
+
   const runningJobs = useMemo(
-    () => jobs.filter((j) => j.status === 'running'),
+    () => jobs.filter((j) => j.status === 'running' || j.status === 'pending'),
     [jobs]
   )
 
   const recentJobs = useMemo(
-    () => jobs.filter((j) => j.status !== 'running').slice(0, 5),
+    () => jobs.filter((j) => j.status !== 'running' && j.status !== 'pending').slice(0, 5),
     [jobs]
   )
 
   const handleRunScout = () => {
-    startJob.mutate({ type: 'scout', options: { demo: DEFAULT_DEMO_MODE } })
+    startJob.mutate({ type: 'scout' })
   }
 
   const handleRunAnalyze = () => {
-    startJob.mutate({ type: 'analyze', options: { demo: DEFAULT_DEMO_MODE } })
+    startJob.mutate({ type: 'analyze' })
   }
 
   const handleRunCurate = () => {
@@ -110,11 +115,11 @@ export function Dashboard() {
         </div>
       </section>
 
-      {/* Running Jobs */}
+      {/* Active Jobs */}
       {runningJobs.length > 0 && (
         <section>
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            Running Jobs
+            Active Jobs
           </h2>
           <div className="space-y-3">
             {runningJobs.map((job) => (

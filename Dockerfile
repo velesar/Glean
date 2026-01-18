@@ -53,8 +53,8 @@ COPY web/api/ ./web/api/
 COPY web/__init__.py ./web/
 COPY db/migrations/ ./db/migrations/
 
-# Install Python dependencies
-RUN pip install -e ".[web]"
+# Install Python dependencies (including anthropic for Claude analyzer)
+RUN pip install -e ".[web,anthropic]"
 
 # Copy built frontend from builder stage
 COPY --from=frontend-builder /app/frontend/dist ./web/frontend/dist

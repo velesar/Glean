@@ -10,8 +10,8 @@ import {
 } from '../hooks/useApi'
 import type { ScoutType, Job } from '../types'
 
-// Default demo mode from environment variable (defaults to true for local dev)
-const DEFAULT_DEMO_MODE = import.meta.env.VITE_DEMO_MODE_DEFAULT !== 'false'
+// Demo mode controlled by environment variable (false in production, true in local dev)
+const DEMO_MODE_ENABLED = import.meta.env.VITE_DEMO_MODE_DEFAULT !== 'false'
 
 // Scout type icons (using simple text/emoji representations)
 const SCOUT_ICONS: Record<string, string> = {
@@ -42,7 +42,8 @@ function ScoutCard({
   onRun: (scoutType: ScoutType, demo: boolean) => void
   isPending: boolean
 }) {
-  const [demoMode, setDemoMode] = useState(DEFAULT_DEMO_MODE)
+  // Only show demo mode toggle in development
+  const [demoMode, setDemoMode] = useState(DEMO_MODE_ENABLED)
 
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow">
@@ -57,18 +58,25 @@ function ScoutCard({
       </div>
 
       <div className="flex items-center justify-between mt-4">
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={demoMode}
-            onChange={(e) => setDemoMode(e.target.checked)}
-            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-          />
-          <span className="text-gray-600">Demo mode</span>
-          {requires_api && !demoMode && (
-            <span className="text-xs text-amber-600">(requires API key)</span>
-          )}
-        </label>
+        {/* Only show demo mode checkbox in development environment */}
+        {DEMO_MODE_ENABLED ? (
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={demoMode}
+              onChange={(e) => setDemoMode(e.target.checked)}
+              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            <span className="text-gray-600">Demo mode</span>
+            {requires_api && !demoMode && (
+              <span className="text-xs text-amber-600">(requires API key)</span>
+            )}
+          </label>
+        ) : (
+          <span className="text-xs text-gray-400">
+            {requires_api ? 'Requires API key' : 'Ready to run'}
+          </span>
+        )}
 
         <button
           onClick={() => onRun(id, demoMode)}
@@ -235,9 +243,11 @@ export function Jobs() {
               </div>
             </div>
             <div className="flex items-center justify-between mt-4">
-              <span className="text-xs text-gray-400">Uses Claude API (or mock mode)</span>
+              <span className="text-xs text-gray-400">
+                {DEMO_MODE_ENABLED ? 'Uses mock analyzer' : 'Uses Claude API'}
+              </span>
               <button
-                onClick={() => startAnalyzeJob.mutate({ mock: true, limit: 10 })}
+                onClick={() => startAnalyzeJob.mutate({ mock: DEMO_MODE_ENABLED, limit: 10 })}
                 disabled={isAnyJobPending}
                 className="px-3 py-1.5 bg-purple-600 text-white text-sm font-medium rounded-md hover:bg-purple-700 disabled:opacity-50 transition-colors"
               >
