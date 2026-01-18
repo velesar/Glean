@@ -10,9 +10,8 @@ import {
 } from '../hooks/useApi'
 import type { ScoutType, Job } from '../types'
 
-// Demo mode controlled by environment variable (false in production, true in local dev)
-// Using String() to ensure proper comparison regardless of how Vite processes the env var
-const DEMO_MODE_ENABLED = String(import.meta.env.VITE_DEMO_MODE_DEFAULT ?? 'true').toLowerCase() !== 'false'
+// Demo mode: false in production (.env.production), true in development (.env.development)
+const DEMO_MODE_ENABLED = import.meta.env.VITE_DEMO_MODE_DEFAULT !== 'false'
 
 // Scout type icons (using simple text/emoji representations)
 const SCOUT_ICONS: Record<string, string> = {

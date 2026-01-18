@@ -15,15 +15,10 @@ COPY web/frontend/package*.json ./
 # Install dependencies
 RUN npm ci
 
-# Copy frontend source
+# Copy frontend source (includes .env.production with VITE_DEMO_MODE_DEFAULT=false)
 COPY web/frontend/ ./
 
-# Set production environment variables for Vite build
-# Using ARG + ENV ensures the variable is available at build time
-ARG VITE_DEMO_MODE_DEFAULT=false
-ENV VITE_DEMO_MODE_DEFAULT=${VITE_DEMO_MODE_DEFAULT}
-
-# Build production bundle
+# Build production bundle (Vite reads .env.production automatically)
 RUN npm run build
 
 # ============================================
