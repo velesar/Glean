@@ -41,6 +41,13 @@ class ScoutType(str, Enum):
     ALL = "all"
 
 
+class LogEntry(BaseModel):
+    """Log entry model."""
+    timestamp: str
+    level: str = "info"  # info, warning, error, success
+    message: str
+
+
 class Job(BaseModel):
     """Job model."""
     id: str
@@ -53,6 +60,15 @@ class Job(BaseModel):
     completed_at: Optional[str] = None
     error: Optional[str] = None
     scout_type: Optional[str] = None
+    logs: list[LogEntry] = []
+
+    def add_log(self, message: str, level: str = "info") -> None:
+        """Add a log entry to the job."""
+        self.logs.append(LogEntry(
+            timestamp=datetime.now().isoformat(),
+            level=level,
+            message=message,
+        ))
 
 
 class ScoutConfig(BaseModel):
@@ -121,6 +137,7 @@ def get_job_from_db(job_id: str) -> Optional[Job]:
     db = get_db()
     job_data = db.get_job(job_id)
     if job_data:
+        logs = [LogEntry(**log) for log in (job_data.get('logs') or [])]
         return Job(
             id=job_data['id'],
             type=JobType(job_data['type']),
@@ -132,6 +149,7 @@ def get_job_from_db(job_id: str) -> Optional[Job]:
             completed_at=job_data['completed_at'],
             error=job_data['error'],
             scout_type=job_data['scout_type'],
+            logs=logs,
         )
     return None
 
@@ -139,6 +157,7 @@ def get_job_from_db(job_id: str) -> Optional[Job]:
 def sync_job_to_db(job: Job) -> None:
     """Sync job state to database."""
     db = get_db()
+    logs_data = [log.model_dump() for log in job.logs]
     db.update_job(
         job.id,
         status=job.status.value,
@@ -146,6 +165,7 @@ def sync_job_to_db(job: Job) -> None:
         message=job.message,
         result=job.result,
         error=job.error,
+        logs=logs_data,
         completed=job.status in (JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED)
     )
 
@@ -157,6 +177,7 @@ async def run_scout_job(job_id: str, config: ScoutConfig):
         return
 
     job.status = JobStatus.RUNNING
+    job.add_log(f"Starting scout job", "info")
     sync_job_to_db(job)
     scout_type = config.scout_type
 
@@ -177,24 +198,29 @@ async def run_scout_job(job_id: str, config: ScoutConfig):
             for i, st in enumerate(scouts_to_run):
                 job.message = f"Running {st.value} scout..."
                 job.progress = int((i / len(scouts_to_run)) * 90)
+                job.add_log(f"Running {st.value} scout...", "info")
                 sync_job_to_db(job)
 
                 saved, skipped = run_single_scout(db, st, config)
                 total_saved += saved
                 total_skipped += skipped
+                job.add_log(f"{st.value}: {saved} discoveries, {skipped} duplicates", "info")
 
         else:
             job.message = f"Running {scout_type.value} scout..."
             job.progress = 10
+            job.add_log(f"Running {scout_type.value} scout...", "info")
             sync_job_to_db(job)
 
             total_saved, total_skipped = run_single_scout(db, scout_type, config)
+            job.add_log(f"Found {total_saved} discoveries, {total_skipped} duplicates", "info")
 
         job.progress = 100
         job.status = JobStatus.COMPLETED
         job.message = f"Completed: {total_saved} discoveries, {total_skipped} duplicates"
         job.result = {"saved": total_saved, "skipped": total_skipped}
         job.completed_at = datetime.now().isoformat()
+        job.add_log(f"Job completed successfully", "success")
         sync_job_to_db(job)
 
     except Exception as e:
@@ -202,6 +228,7 @@ async def run_scout_job(job_id: str, config: ScoutConfig):
         job.error = str(e)
         job.message = f"Failed: {str(e)}"
         job.completed_at = datetime.now().isoformat()
+        job.add_log(f"Job failed: {str(e)}", "error")
         sync_job_to_db(job)
     finally:
         # Remove from cache when done
@@ -261,6 +288,7 @@ async def run_analyze_job(job_id: str, config: AnalyzeConfig):
 
     job.status = JobStatus.RUNNING
     job.message = "Starting analyzer..."
+    job.add_log("Starting analyzer job", "info")
     sync_job_to_db(job)
 
     try:
@@ -274,6 +302,7 @@ async def run_analyze_job(job_id: str, config: AnalyzeConfig):
 
         job.progress = 10
         job.message = "Analyzing discoveries..."
+        job.add_log(f"Analyzing up to {config.limit} discoveries (mock={config.mock})", "info")
         sync_job_to_db(job)
 
         result = run_analyzer(db, analyzer_config, use_mock=config.mock)
@@ -288,6 +317,11 @@ async def run_analyze_job(job_id: str, config: AnalyzeConfig):
             "errors": result['errors'],
         }
         job.completed_at = datetime.now().isoformat()
+        job.add_log(f"Processed {result['processed']} discoveries", "info")
+        job.add_log(f"Extracted {result['tools_extracted']} tools, {result['claims_extracted']} claims", "info")
+        if result['errors'] > 0:
+            job.add_log(f"{result['errors']} errors during processing", "warning")
+        job.add_log("Job completed successfully", "success")
         sync_job_to_db(job)
 
     except Exception as e:
@@ -295,6 +329,7 @@ async def run_analyze_job(job_id: str, config: AnalyzeConfig):
         job.error = str(e)
         job.message = f"Failed: {str(e)}"
         job.completed_at = datetime.now().isoformat()
+        job.add_log(f"Job failed: {str(e)}", "error")
         sync_job_to_db(job)
     finally:
         _job_cache.pop(job_id, None)
@@ -308,6 +343,7 @@ async def run_curate_job(job_id: str, config: CurateConfig):
 
     job.status = JobStatus.RUNNING
     job.message = "Starting curation..."
+    job.add_log("Starting curation job", "info")
     sync_job_to_db(job)
 
     try:
@@ -317,6 +353,7 @@ async def run_curate_job(job_id: str, config: CurateConfig):
 
         job.progress = 10
         job.message = "Scoring and ranking tools..."
+        job.add_log(f"Scoring tools (min_score={config.min_score}, auto_merge={config.auto_merge})", "info")
         sync_job_to_db(job)
 
         result = run_curation(
@@ -335,6 +372,11 @@ async def run_curate_job(job_id: str, config: CurateConfig):
             "avg_score": round(result.avg_score, 2),
         }
         job.completed_at = datetime.now().isoformat()
+        job.add_log(f"Scored {result.tools_scored} tools (avg: {result.avg_score:.2f})", "info")
+        job.add_log(f"Promoted {result.tools_promoted} tools to review", "info")
+        if result.duplicates_merged > 0:
+            job.add_log(f"Merged {result.duplicates_merged} duplicates", "info")
+        job.add_log("Job completed successfully", "success")
         sync_job_to_db(job)
 
     except Exception as e:
@@ -342,6 +384,7 @@ async def run_curate_job(job_id: str, config: CurateConfig):
         job.error = str(e)
         job.message = f"Failed: {str(e)}"
         job.completed_at = datetime.now().isoformat()
+        job.add_log(f"Job failed: {str(e)}", "error")
         sync_job_to_db(job)
     finally:
         _job_cache.pop(job_id, None)
@@ -355,6 +398,7 @@ async def run_update_job(job_id: str):
 
     job.status = JobStatus.RUNNING
     job.message = "Checking for updates..."
+    job.add_log("Starting update check job", "info")
     sync_job_to_db(job)
 
     try:
@@ -364,6 +408,7 @@ async def run_update_job(job_id: str):
 
         job.progress = 10
         job.message = "Fetching tool pages..."
+        job.add_log("Fetching approved tool pages for changes...", "info")
         sync_job_to_db(job)
 
         result = run_update_check(db)
@@ -376,6 +421,9 @@ async def run_update_job(job_id: str):
             "changes_detected": result['changes_detected'],
         }
         job.completed_at = datetime.now().isoformat()
+        job.add_log(f"Checked {result['tools_checked']} tools", "info")
+        job.add_log(f"Detected {result['changes_detected']} changes", "info")
+        job.add_log("Job completed successfully", "success")
         sync_job_to_db(job)
 
     except Exception as e:
@@ -383,6 +431,7 @@ async def run_update_job(job_id: str):
         job.error = str(e)
         job.message = f"Failed: {str(e)}"
         job.completed_at = datetime.now().isoformat()
+        job.add_log(f"Job failed: {str(e)}", "error")
         sync_job_to_db(job)
     finally:
         _job_cache.pop(job_id, None)

@@ -522,13 +522,17 @@ class Database:
                 job['result'] = json.loads(job['result'])
             if job.get('config'):
                 job['config'] = json.loads(job['config'])
+            if job.get('logs'):
+                job['logs'] = json.loads(job['logs'])
+            else:
+                job['logs'] = []
             return job
         return None
 
     def update_job(self, job_id: str, status: Optional[str] = None,
                    progress: Optional[int] = None, message: Optional[str] = None,
                    result: Optional[dict] = None, error: Optional[str] = None,
-                   completed: bool = False) -> None:
+                   logs: Optional[list] = None, completed: bool = False) -> None:
         """Update job status and fields."""
         conn = self.connect()
         updates = []
@@ -554,6 +558,10 @@ class Database:
             updates.append("error = ?")
             params.append(error)
 
+        if logs is not None:
+            updates.append("logs = ?")
+            params.append(json.dumps(logs))
+
         if completed:
             updates.append("completed_at = CURRENT_TIMESTAMP")
 
@@ -561,6 +569,31 @@ class Database:
             params.append(job_id)
             query = f"UPDATE jobs SET {', '.join(updates)} WHERE id = ?"
             conn.execute(query, params)
+            conn.commit()
+
+    def add_job_log(self, job_id: str, message: str,
+                    level: str = 'info') -> None:
+        """Add a log entry to a job."""
+        from datetime import datetime
+        conn = self.connect()
+
+        # Get current logs
+        row = conn.execute(
+            "SELECT logs FROM jobs WHERE id = ?", (job_id,)
+        ).fetchone()
+
+        if row:
+            logs = json.loads(row['logs'] or '[]')
+            logs.append({
+                'timestamp': datetime.now().isoformat(),
+                'level': level,
+                'message': message,
+            })
+
+            conn.execute(
+                "UPDATE jobs SET logs = ? WHERE id = ?",
+                (json.dumps(logs), job_id)
+            )
             conn.commit()
 
     def list_jobs(self, limit: int = 20, status: Optional[str] = None,
@@ -589,6 +622,10 @@ class Database:
                 job['result'] = json.loads(job['result'])
             if job.get('config'):
                 job['config'] = json.loads(job['config'])
+            if job.get('logs'):
+                job['logs'] = json.loads(job['logs'])
+            else:
+                job['logs'] = []
             jobs.append(job)
         return jobs
 
