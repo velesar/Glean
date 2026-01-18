@@ -26,18 +26,30 @@ jobs:
 
       - name: Check and create volume
         run: |
-          # Check if volume exists
-          VOLUMES=$(flyctl volumes list -a "$FLY_APP_NAME" 2>/dev/null || echo "")
-          if echo "$VOLUMES" | grep -q "glean_data"; then
+          set -e
+          echo "Checking for existing volumes..."
+
+          # List volumes and check if glean_data exists
+          if flyctl volumes list -a "$FLY_APP_NAME" --json | grep -q '"name":"glean_data"'; then
             echo "Volume glean_data already exists"
           else
-            echo "Creating volume glean_data..."
+            echo "Volume glean_data not found. Creating..."
             flyctl volumes create glean_data \
               --region "$FLY_REGION" \
               --size 1 \
               --app "$FLY_APP_NAME" \
-              --yes
+              --yes \
+              --no-encryption
             echo "Volume created successfully"
+
+            # Verify volume was created
+            sleep 2
+            if flyctl volumes list -a "$FLY_APP_NAME" --json | grep -q '"name":"glean_data"'; then
+              echo "Volume verified"
+            else
+              echo "ERROR: Volume creation failed"
+              exit 1
+            fi
           fi
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
