@@ -61,6 +61,7 @@ class Job(BaseModel):
     error: Optional[str] = None
     scout_type: Optional[str] = None
     logs: list[LogEntry] = []
+    user_id: Optional[int] = None
 
     def add_log(self, message: str, level: str = "info") -> None:
         """Add a log entry to the job."""
@@ -116,6 +117,7 @@ def create_job(job_type: JobType, scout_type: Optional[str] = None,
         status=JobStatus.PENDING,
         started_at=datetime.now().isoformat(),
         scout_type=scout_type,
+        user_id=user_id,
     )
 
     # Persist to database
@@ -150,6 +152,7 @@ def get_job_from_db(job_id: str) -> Optional[Job]:
             error=job_data['error'],
             scout_type=job_data['scout_type'],
             logs=logs,
+            user_id=job_data.get('user_id'),
         )
     return None
 
@@ -300,12 +303,26 @@ async def run_analyze_job(job_id: str, config: AnalyzeConfig):
             'limit': config.limit,
         }
 
+        # Load API key from user settings if not using mock mode
+        use_mock = config.mock
+        if not use_mock and job.user_id:
+            api_key = db.get_setting(job.user_id, 'api_keys', 'anthropic')
+            if api_key:
+                analyzer_config['api_key'] = api_key
+                job.add_log("Using Anthropic API key from settings", "info")
+            else:
+                job.add_log("No Anthropic API key found in settings, falling back to mock mode", "warning")
+                use_mock = True
+        elif not use_mock:
+            job.add_log("No user context available, falling back to mock mode", "warning")
+            use_mock = True
+
         job.progress = 10
         job.message = "Analyzing discoveries..."
-        job.add_log(f"Analyzing up to {config.limit} discoveries (mock={config.mock})", "info")
+        job.add_log(f"Analyzing up to {config.limit} discoveries (mock={use_mock})", "info")
         sync_job_to_db(job)
 
-        result = run_analyzer(db, analyzer_config, use_mock=config.mock)
+        result = run_analyzer(db, analyzer_config, use_mock=use_mock)
 
         job.progress = 100
         job.status = JobStatus.COMPLETED
@@ -547,7 +564,7 @@ async def start_analyze(
     current_user: dict = Depends(get_current_user)
 ):
     """Start an analyzer job."""
-    job = create_job(JobType.ANALYZE)
+    job = create_job(JobType.ANALYZE, user_id=current_user.get('id'))
     background_tasks.add_task(run_analyze_job, job.id, config)
     return {"job_id": job.id, "status": job.status}
 
