@@ -349,184 +349,9 @@ async def get_all_settings(
     return result
 
 
-@router.get("/{category}")
-async def get_category_settings(
-    category: str,
-    current_user: dict = Depends(get_current_user),
-    db: Database = Depends(get_db),
-):
-    """Get all settings in a category."""
-    if category not in ["api_keys", "scouts", "analyzers"]:
-        raise HTTPException(status_code=400, detail=f"Invalid category: {category}")
-
-    settings = db.get_settings_by_category(current_user["id"], category)
-
-    # Get schema
-    schemas = {
-        "api_keys": API_KEY_SETTINGS,
-        "scouts": SCOUT_SETTINGS,
-        "analyzers": ANALYZER_SETTINGS,
-    }
-    schema = schemas.get(category, {})
-
-    result = {}
-    for key, meta in schema.items():
-        setting = settings.get(key)
-        if setting:
-            value = setting["value"]
-            is_secret = setting["is_secret"]
-            display_value = mask_secret(value) if is_secret else value
-        else:
-            value = None
-            is_secret = category == "api_keys"
-            display_value = None
-
-        result[key] = {
-            "value": display_value,
-            "is_set": value is not None,
-            "is_secret": is_secret,
-            **meta,
-        }
-
-    return result
-
-
-@router.put("/{category}/{key}")
-async def update_setting(
-    category: str,
-    key: str,
-    update: SettingUpdate,
-    current_user: dict = Depends(get_current_user),
-    db: Database = Depends(get_db),
-):
-    """Update a setting value."""
-    if category not in ["api_keys", "scouts", "analyzers"]:
-        raise HTTPException(status_code=400, detail=f"Invalid category: {category}")
-
-    # Validate key exists in schema
-    schemas = {
-        "api_keys": API_KEY_SETTINGS,
-        "scouts": SCOUT_SETTINGS,
-        "analyzers": ANALYZER_SETTINGS,
-    }
-    if key not in schemas.get(category, {}):
-        raise HTTPException(status_code=400, detail=f"Invalid setting: {category}/{key}")
-
-    # API keys are always secret
-    is_secret = update.is_secret or category == "api_keys"
-
-    db.set_setting(
-        user_id=current_user["id"],
-        category=category,
-        key=key,
-        value=update.value,
-        is_secret=is_secret,
-    )
-
-    meta = get_setting_metadata(category, key)
-    display_value = mask_secret(update.value) if is_secret else update.value
-
-    return {
-        "success": True,
-        "setting": {
-            "category": category,
-            "key": key,
-            "value": display_value,
-            "is_set": True,
-            "is_secret": is_secret,
-            **meta,
-        },
-    }
-
-
-@router.delete("/{category}/{key}")
-async def delete_setting(
-    category: str,
-    key: str,
-    current_user: dict = Depends(get_current_user),
-    db: Database = Depends(get_db),
-):
-    """Delete a setting."""
-    deleted = db.delete_setting(current_user["id"], category, key)
-
-    if not deleted:
-        raise HTTPException(status_code=404, detail="Setting not found")
-
-    return {"success": True, "message": f"Deleted {category}/{key}"}
-
-
-@router.post("/test/{category}/{key}")
-async def test_setting(
-    category: str,
-    key: str,
-    current_user: dict = Depends(get_current_user),
-    db: Database = Depends(get_db),
-):
-    """Test a setting (e.g., validate an API key)."""
-    value = db.get_setting(current_user["id"], category, key)
-
-    if not value:
-        raise HTTPException(status_code=400, detail="Setting not configured")
-
-    # Test specific integrations
-    if category == "api_keys":
-        if key == "anthropic":
-            try:
-                import anthropic
-                client = anthropic.Anthropic(api_key=value)
-                # Make a minimal API call to verify
-                client.messages.create(
-                    model="claude-sonnet-4-20250514",
-                    max_tokens=10,
-                    messages=[{"role": "user", "content": "Hi"}],
-                )
-                return {"success": True, "message": "Anthropic API key is valid"}
-            except anthropic.AuthenticationError:
-                return {"success": False, "message": "Invalid API key"}
-            except Exception as e:
-                return {"success": False, "message": f"Error: {str(e)}"}
-
-        elif key == "openai":
-            try:
-                import openai
-                client = openai.OpenAI(api_key=value)
-                client.models.list()
-                return {"success": True, "message": "OpenAI API key is valid"}
-            except Exception as e:
-                return {"success": False, "message": f"Error: {str(e)}"}
-
-        elif key in ("producthunt_api_key", "producthunt_api_secret"):
-            # Test Product Hunt credentials (need both key and secret)
-            api_key = db.get_setting(current_user["id"], "api_keys", "producthunt_api_key")
-            api_secret = db.get_setting(current_user["id"], "api_keys", "producthunt_api_secret")
-
-            if not api_key or not api_secret:
-                return {
-                    "success": False,
-                    "message": "Both API Key and API Secret must be configured to test"
-                }
-
-            try:
-                import requests
-                response = requests.post(
-                    "https://api.producthunt.com/v2/oauth/token",
-                    json={
-                        "client_id": api_key,
-                        "client_secret": api_secret,
-                        "grant_type": "client_credentials",
-                    },
-                    timeout=10,
-                )
-                if response.status_code == 200 and response.json().get("access_token"):
-                    return {"success": True, "message": "Product Hunt credentials are valid"}
-                else:
-                    error = response.json().get("error", "Unknown error")
-                    return {"success": False, "message": f"Invalid credentials: {error}"}
-            except Exception as e:
-                return {"success": False, "message": f"Error: {str(e)}"}
-
-    return {"success": True, "message": "Setting is configured"}
-
+# ============================================================================
+# Service-grouped API endpoints (must be defined BEFORE /{category} route)
+# ============================================================================
 
 def _get_service_setting_key(service_id: str, field_key: str,
                              provider_id: Optional[str] = None) -> str:
@@ -912,3 +737,186 @@ async def test_service(
             return {"success": False, "message": f"Unknown provider: {provider}"}
 
     return {"success": True, "message": "Service configured"}
+
+
+# ============================================================================
+# Category-based settings endpoints
+# ============================================================================
+
+@router.get("/{category}")
+async def get_category_settings(
+    category: str,
+    current_user: dict = Depends(get_current_user),
+    db: Database = Depends(get_db),
+):
+    """Get all settings in a category."""
+    if category not in ["api_keys", "scouts", "analyzers"]:
+        raise HTTPException(status_code=400, detail=f"Invalid category: {category}")
+
+    settings = db.get_settings_by_category(current_user["id"], category)
+
+    # Get schema
+    schemas = {
+        "api_keys": API_KEY_SETTINGS,
+        "scouts": SCOUT_SETTINGS,
+        "analyzers": ANALYZER_SETTINGS,
+    }
+    schema = schemas.get(category, {})
+
+    result = {}
+    for key, meta in schema.items():
+        setting = settings.get(key)
+        if setting:
+            value = setting["value"]
+            is_secret = setting["is_secret"]
+            display_value = mask_secret(value) if is_secret else value
+        else:
+            value = None
+            is_secret = category == "api_keys"
+            display_value = None
+
+        result[key] = {
+            "value": display_value,
+            "is_set": value is not None,
+            "is_secret": is_secret,
+            **meta,
+        }
+
+    return result
+
+
+@router.put("/{category}/{key}")
+async def update_setting(
+    category: str,
+    key: str,
+    update: SettingUpdate,
+    current_user: dict = Depends(get_current_user),
+    db: Database = Depends(get_db),
+):
+    """Update a setting value."""
+    if category not in ["api_keys", "scouts", "analyzers"]:
+        raise HTTPException(status_code=400, detail=f"Invalid category: {category}")
+
+    # Validate key exists in schema
+    schemas = {
+        "api_keys": API_KEY_SETTINGS,
+        "scouts": SCOUT_SETTINGS,
+        "analyzers": ANALYZER_SETTINGS,
+    }
+    if key not in schemas.get(category, {}):
+        raise HTTPException(status_code=400, detail=f"Invalid setting: {category}/{key}")
+
+    # API keys are always secret
+    is_secret = update.is_secret or category == "api_keys"
+
+    db.set_setting(
+        user_id=current_user["id"],
+        category=category,
+        key=key,
+        value=update.value,
+        is_secret=is_secret,
+    )
+
+    meta = get_setting_metadata(category, key)
+    display_value = mask_secret(update.value) if is_secret else update.value
+
+    return {
+        "success": True,
+        "setting": {
+            "category": category,
+            "key": key,
+            "value": display_value,
+            "is_set": True,
+            "is_secret": is_secret,
+            **meta,
+        },
+    }
+
+
+@router.delete("/{category}/{key}")
+async def delete_setting(
+    category: str,
+    key: str,
+    current_user: dict = Depends(get_current_user),
+    db: Database = Depends(get_db),
+):
+    """Delete a setting."""
+    deleted = db.delete_setting(current_user["id"], category, key)
+
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Setting not found")
+
+    return {"success": True, "message": f"Deleted {category}/{key}"}
+
+
+@router.post("/test/{category}/{key}")
+async def test_setting(
+    category: str,
+    key: str,
+    current_user: dict = Depends(get_current_user),
+    db: Database = Depends(get_db),
+):
+    """Test a setting (e.g., validate an API key)."""
+    value = db.get_setting(current_user["id"], category, key)
+
+    if not value:
+        raise HTTPException(status_code=400, detail="Setting not configured")
+
+    # Test specific integrations
+    if category == "api_keys":
+        if key == "anthropic":
+            try:
+                import anthropic
+                client = anthropic.Anthropic(api_key=value)
+                # Make a minimal API call to verify
+                client.messages.create(
+                    model="claude-sonnet-4-20250514",
+                    max_tokens=10,
+                    messages=[{"role": "user", "content": "Hi"}],
+                )
+                return {"success": True, "message": "Anthropic API key is valid"}
+            except anthropic.AuthenticationError:
+                return {"success": False, "message": "Invalid API key"}
+            except Exception as e:
+                return {"success": False, "message": f"Error: {str(e)}"}
+
+        elif key == "openai":
+            try:
+                import openai
+                client = openai.OpenAI(api_key=value)
+                client.models.list()
+                return {"success": True, "message": "OpenAI API key is valid"}
+            except Exception as e:
+                return {"success": False, "message": f"Error: {str(e)}"}
+
+        elif key in ("producthunt_api_key", "producthunt_api_secret"):
+            # Test Product Hunt credentials (need both key and secret)
+            api_key = db.get_setting(current_user["id"], "api_keys", "producthunt_api_key")
+            api_secret = db.get_setting(current_user["id"], "api_keys", "producthunt_api_secret")
+
+            if not api_key or not api_secret:
+                return {
+                    "success": False,
+                    "message": "Both API Key and API Secret must be configured to test"
+                }
+
+            try:
+                import requests
+                response = requests.post(
+                    "https://api.producthunt.com/v2/oauth/token",
+                    json={
+                        "client_id": api_key,
+                        "client_secret": api_secret,
+                        "grant_type": "client_credentials",
+                    },
+                    timeout=10,
+                )
+                if response.status_code == 200 and response.json().get("access_token"):
+                    return {"success": True, "message": "Product Hunt credentials are valid"}
+                else:
+                    error = response.json().get("error", "Unknown error")
+                    return {"success": False, "message": f"Invalid credentials: {error}"}
+            except Exception as e:
+                return {"success": False, "message": f"Error: {str(e)}"}
+
+    return {"success": True, "message": "Setting is configured"}
