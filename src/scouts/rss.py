@@ -53,8 +53,8 @@ DEFAULT_FEEDS = [
     },
     # Product launches
     {
-        'name': 'BetaList',
-        'url': 'https://betalist.com/feed',
+        'name': 'Product Hunt',
+        'url': 'https://www.producthunt.com/feed',
         'category': 'launches',
     },
 ]
@@ -388,7 +388,7 @@ AI SDR tools. Plus interviews with sales leaders using AI to hit quota.''',
                 }
             },
             {
-                'source_url': 'https://betalist.com/startups/salesai',
+                'source_url': 'https://www.producthunt.com/posts/salesai',
                 'raw_text': '''SalesAI - AI-Powered Sales Automation
 
 SalesAI automates the entire outbound sales process with artificial intelligence.
@@ -396,7 +396,7 @@ Features include AI email writing, automated sequences, lead scoring, and
 CRM sync. Now in beta - join 500+ companies on the waitlist.''',
                 'metadata': {
                     'type': 'feed_item',
-                    'feed_name': 'BetaList',
+                    'feed_name': 'Product Hunt',
                     'feed_category': 'launches',
                     'title': 'SalesAI - AI-Powered Sales Automation',
                     'pub_date': '2026-01-07T12:00:00',
