@@ -4,6 +4,7 @@ API Dependencies
 Shared dependencies for API routers.
 """
 
+import os
 from typing import Optional
 
 from fastapi import Depends, HTTPException, status
@@ -13,17 +14,22 @@ from src.database import Database
 from web.api.auth import decode_access_token
 
 # Global database instance
-_db: Database = None
+_db: Optional[Database] = None
 
 # Security scheme
 security = HTTPBearer(auto_error=False)
+
+
+def get_db_path() -> str:
+    """Get database path from environment or default."""
+    return os.environ.get("GLEAN_DB_PATH", "db/glean.db")
 
 
 def get_db() -> Database:
     """Get database instance."""
     global _db
     if _db is None:
-        _db = Database()
+        _db = Database(get_db_path())
         _db.init_schema()
     return _db
 
@@ -31,8 +37,11 @@ def get_db() -> Database:
 def init_db():
     """Initialize database on startup."""
     global _db
-    _db = Database()
+    db_path = get_db_path()
+    print(f"Initializing database at: {db_path}")
+    _db = Database(db_path)
     _db.init_schema()
+    print("Database initialized successfully")
 
 
 def close_db():

@@ -124,7 +124,7 @@ def _score_keywords(text: str) -> tuple[float, list[str]]:
         return 0.0, []
 
     score = 0.0
-    reasons = []
+    reasons: list[str] = []
 
     # Check high-value keywords
     for pattern in RELEVANCE_SIGNALS['high']:

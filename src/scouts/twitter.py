@@ -8,7 +8,7 @@ NOTE: Twitter API v2 requires authentication. This scout supports:
 2. Demo mode (uses sample data for testing the pipeline)
 """
 
-from typing import Optional
+from typing import Any, Optional
 
 import httpx
 
@@ -41,7 +41,7 @@ class TwitterScout(Scout):
 
     source_name = 'twitter'
 
-    def __init__(self, db: Database, config: dict = None):
+    def __init__(self, db: Database, config: Optional[dict] = None):
         super().__init__(db, config)
         self.search_queries = self.config.get('search_queries', DEFAULT_SEARCH_QUERIES)
         self.max_results = self.config.get('max_results', 100)
@@ -191,7 +191,7 @@ class TwitterScout(Scout):
 
     def _get_demo_discoveries(self) -> list[Discovery]:
         """Return sample discoveries for testing."""
-        samples = [
+        samples: list[dict[str, Any]] = [
             {
                 'source_url': 'https://twitter.com/sales_tech_guru/status/demo1',
                 'raw_text': '''Just discovered an amazing AI sales tool called SalesGPT - it writes personalized cold emails that actually get responses!
@@ -295,7 +295,7 @@ Full review: https://aireviews.example.com/gong-vs-chorus''',
         self.client.close()
 
 
-def run_twitter_scout(db: Database, config: dict = None) -> tuple[int, int]:
+def run_twitter_scout(db: Database, config: Optional[dict] = None) -> tuple[int, int]:
     """Convenience function to run the Twitter scout."""
     scout = TwitterScout(db, config)
     try:

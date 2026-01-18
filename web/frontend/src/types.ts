@@ -42,6 +42,92 @@ export interface Tool {
   last_updated: string
   reviewed_at: string | null
   rejection_reason: string | null
+  created_at: string
+}
+
+export interface ToolDetail extends Tool {
+  claims: Claim[]
+  changelog: ChangelogEntry[]
+  discoveries: Discovery[]
+}
+
+export interface ChangelogEntry {
+  id: number
+  tool_id: number
+  change_type: string
+  description: string
+  source_url: string | null
+  detected_at: string
+}
+
+export interface Discovery {
+  id: number
+  source_id: number
+  source_url: string
+  raw_text: string
+  metadata: Record<string, unknown> | null
+  processed: number
+  tool_id: number | null
+  discovered_at: string
+}
+
+export interface ToolsFilter {
+  status?: string
+  category?: string
+  search?: string
+  min_score?: number
+  max_score?: number
+  created_after?: string
+  created_before?: string
+  sort_by?: string
+  sort_order?: 'asc' | 'desc'
+  limit?: number
+  offset?: number
+}
+
+export interface ToolsResponse {
+  tools: Tool[]
+  total: number
+  limit: number
+  offset: number
+  filters: ToolsFilter
+}
+
+export interface ToolUpdate {
+  name?: string
+  url?: string
+  description?: string
+  category?: string
+  relevance_score?: number
+}
+
+export interface BulkStatusUpdate {
+  tool_ids: number[]
+  status: string
+  rejection_reason?: string
+}
+
+export interface BulkStatusResponse {
+  success: boolean
+  status: string
+  updated: number[]
+  updated_count: number
+  not_found: number[]
+}
+
+export interface BulkDeleteResponse {
+  success: boolean
+  deleted: number[]
+  deleted_count: number
+  not_found: number[]
+}
+
+export interface ExportFilters {
+  status?: string
+  category?: string
+  min_score?: number
+  max_score?: number
+  include_claims?: boolean
 }
 
 export interface Claim {

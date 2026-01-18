@@ -1,0 +1,87 @@
+name: Deploy to Fly.io
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+    inputs:
+      create_volume:
+        description: 'Create volume if not exists'
+        required: false
+        default: 'true'
+        type: boolean
+
+env:
+  FLY_APP_NAME: glean-ayusuw
+  FLY_REGION: iad
+
+jobs:
+  deploy:
+    name: Deploy to Fly.io
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Fly.io CLI
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Check app exists
+        run: |
+          flyctl apps list | grep -q "$FLY_APP_NAME" || {
+            echo "App $FLY_APP_NAME not found. Creating..."
+            flyctl apps create "$FLY_APP_NAME" --org personal
+          }
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Check and create volume
+        if: ${{ github.event.inputs.create_volume != 'false' }}
+        run: |
+          # Check if volume exists
+          if flyctl volumes list -a "$FLY_APP_NAME" | grep -q "glean_data"; then
+            echo "Volume glean_data already exists"
+          else
+            echo "Creating volume glean_data..."
+            flyctl volumes create glean_data \
+              --region "$FLY_REGION" \
+              --size 1 \
+              --app "$FLY_APP_NAME" \
+              --yes
+          fi
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Set secrets if not exists
+        run: |
+          # Check if GLEAN_SECRET_KEY is set
+          if ! flyctl secrets list -a "$FLY_APP_NAME" | grep -q "GLEAN_SECRET_KEY"; then
+            echo "Setting GLEAN_SECRET_KEY..."
+            flyctl secrets set GLEAN_SECRET_KEY="$(openssl rand -hex 32)" -a "$FLY_APP_NAME"
+          else
+            echo "GLEAN_SECRET_KEY already set"
+          fi
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Deploy to Fly.io
+        run: flyctl deploy --remote-only -a "$FLY_APP_NAME"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Show deployment info
+        run: |
+          echo "Deployment complete!"
+          echo "App URL: https://$FLY_APP_NAME.fly.dev"
+          flyctl status -a "$FLY_APP_NAME"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Health check
+        run: |
+          echo "Waiting for app to be ready..."
+          sleep 10
+          curl -sf "https://$FLY_APP_NAME.fly.dev/api/health" || echo "Health check pending..."

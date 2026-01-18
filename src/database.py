@@ -7,7 +7,7 @@ SQLite database schema and operations for the Glean pipeline.
 import json
 import sqlite3
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 SCHEMA = """
 -- Sources: where we discover tools (Reddit, Product Hunt, etc.)
@@ -171,8 +171,8 @@ class Database:
 
     # --- Tool Operations ---
 
-    def add_tool(self, name: str, url: str, description: str = None,
-                 category: str = None, status: str = "inbox") -> int:
+    def add_tool(self, name: str, url: str, description: Optional[str] = None,
+                 category: Optional[str] = None, status: str = "inbox") -> int:
         """Add a new tool to the database."""
         conn = self.connect()
         cursor = conn.execute(
@@ -204,7 +204,7 @@ class Database:
         return [dict(row) for row in rows]
 
     def update_tool_status(self, tool_id: int, status: str,
-                           rejection_reason: str = None):
+                           rejection_reason: Optional[str] = None) -> None:
         """Update a tool's pipeline status."""
         conn = self.connect()
         if status == "rejected" and rejection_reason:
@@ -239,8 +239,8 @@ class Database:
     # --- Claim Operations ---
 
     def add_claim(self, tool_id: int, source_id: int, content: str,
-                  claim_type: str = None, confidence: float = 0.5,
-                  raw_text: str = None) -> int:
+                  claim_type: Optional[str] = None, confidence: float = 0.5,
+                  raw_text: Optional[str] = None) -> int:
         """Add a claim about a tool."""
         conn = self.connect()
         cursor = conn.execute(
@@ -269,7 +269,7 @@ class Database:
     # --- Discovery Operations ---
 
     def add_discovery(self, source_id: int, source_url: str, raw_text: str,
-                      metadata: dict = None) -> int:
+                      metadata: Optional[dict] = None) -> int:
         """Add a raw discovery from a scout."""
         conn = self.connect()
         cursor = conn.execute(
@@ -296,7 +296,7 @@ class Database:
         ).fetchall()
         return [dict(row) for row in rows]
 
-    def mark_discovery_processed(self, discovery_id: int, tool_id: int = None):
+    def mark_discovery_processed(self, discovery_id: int, tool_id: Optional[int] = None) -> None:
         """Mark a discovery as processed, optionally linking to a tool."""
         conn = self.connect()
         conn.execute(
@@ -340,7 +340,7 @@ class Database:
     # --- Changelog Operations ---
 
     def add_changelog_entry(self, tool_id: int, change_type: str,
-                            description: str, source_url: str = None) -> int:
+                            description: str, source_url: Optional[str] = None) -> int:
         """Add a changelog entry for a tool."""
         conn = self.connect()
         cursor = conn.execute(
@@ -449,7 +449,7 @@ class Database:
             (user_id,)
         ).fetchall()
 
-        result = {}
+        result: dict[str, dict[str, dict[str, Any]]] = {}
         for row in rows:
             cat = row["category"]
             if cat not in result:
@@ -491,6 +491,115 @@ class Database:
         cursor = conn.execute(
             "DELETE FROM settings WHERE user_id = ? AND category = ?",
             (user_id, category)
+        )
+        conn.commit()
+        return cursor.rowcount
+
+    # --- Job Operations ---
+
+    def create_job(self, job_id: str, job_type: str, scout_type: Optional[str] = None,
+                   config: Optional[dict] = None, user_id: Optional[int] = None) -> str:
+        """Create a new job record."""
+        conn = self.connect()
+        conn.execute(
+            """INSERT INTO jobs (id, type, status, scout_type, config, user_id)
+               VALUES (?, ?, 'pending', ?, ?, ?)""",
+            (job_id, job_type, scout_type, json.dumps(config) if config else None, user_id)
+        )
+        conn.commit()
+        return job_id
+
+    def get_job(self, job_id: str) -> Optional[dict]:
+        """Get a job by ID."""
+        conn = self.connect()
+        row = conn.execute(
+            "SELECT * FROM jobs WHERE id = ?", (job_id,)
+        ).fetchone()
+        if row:
+            job = dict(row)
+            # Parse JSON fields
+            if job.get('result'):
+                job['result'] = json.loads(job['result'])
+            if job.get('config'):
+                job['config'] = json.loads(job['config'])
+            return job
+        return None
+
+    def update_job(self, job_id: str, status: Optional[str] = None,
+                   progress: Optional[int] = None, message: Optional[str] = None,
+                   result: Optional[dict] = None, error: Optional[str] = None,
+                   completed: bool = False) -> None:
+        """Update job status and fields."""
+        conn = self.connect()
+        updates = []
+        params: list = []
+
+        if status is not None:
+            updates.append("status = ?")
+            params.append(status)
+
+        if progress is not None:
+            updates.append("progress = ?")
+            params.append(progress)
+
+        if message is not None:
+            updates.append("message = ?")
+            params.append(message)
+
+        if result is not None:
+            updates.append("result = ?")
+            params.append(json.dumps(result))
+
+        if error is not None:
+            updates.append("error = ?")
+            params.append(error)
+
+        if completed:
+            updates.append("completed_at = CURRENT_TIMESTAMP")
+
+        if updates:
+            params.append(job_id)
+            query = f"UPDATE jobs SET {', '.join(updates)} WHERE id = ?"
+            conn.execute(query, params)
+            conn.commit()
+
+    def list_jobs(self, limit: int = 20, status: Optional[str] = None,
+                  user_id: Optional[int] = None) -> list[dict]:
+        """List jobs with optional filters."""
+        conn = self.connect()
+        query = "SELECT * FROM jobs WHERE 1=1"
+        params: list = []
+
+        if status:
+            query += " AND status = ?"
+            params.append(status)
+
+        if user_id:
+            query += " AND user_id = ?"
+            params.append(user_id)
+
+        query += " ORDER BY started_at DESC LIMIT ?"
+        params.append(limit)
+
+        rows = conn.execute(query, params).fetchall()
+        jobs = []
+        for row in rows:
+            job = dict(row)
+            if job.get('result'):
+                job['result'] = json.loads(job['result'])
+            if job.get('config'):
+                job['config'] = json.loads(job['config'])
+            jobs.append(job)
+        return jobs
+
+    def delete_old_jobs(self, days: int = 7) -> int:
+        """Delete jobs older than specified days. Returns count deleted."""
+        conn = self.connect()
+        cursor = conn.execute(
+            """DELETE FROM jobs
+               WHERE completed_at IS NOT NULL
+               AND completed_at < datetime('now', ?)""",
+            (f'-{days} days',)
         )
         conn.commit()
         return cursor.rowcount

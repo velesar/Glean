@@ -7,6 +7,7 @@ Generate digests, changelogs, and summaries.
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any, Optional
 
 from src.database import Database
 
@@ -125,7 +126,7 @@ def generate_weekly_digest(db: Database, weeks_back: int = 1) -> str:
         lines.append("")
 
         # Group by tool
-        changes_by_tool = {}
+        changes_by_tool: dict[str, list[dict]] = {}
         for change in changes:
             change = dict(change)
             tool_name = change['tool_name']
@@ -153,7 +154,7 @@ def generate_weekly_digest(db: Database, weeks_back: int = 1) -> str:
     return '\n'.join(lines)
 
 
-def generate_changelog(db: Database, days: int = 7, tool_id: int = None) -> str:
+def generate_changelog(db: Database, days: int = 7, tool_id: Optional[int] = None) -> str:
     """Generate a changelog in Markdown format.
 
     Args:
@@ -201,7 +202,7 @@ def generate_changelog(db: Database, days: int = 7, tool_id: int = None) -> str:
 
     if changes:
         # Group by date
-        changes_by_date = {}
+        changes_by_date: dict[str, list[dict[str, Any]]] = {}
         for change in changes:
             change = dict(change)
             date = change['detected_at'][:10]
@@ -254,7 +255,7 @@ def generate_tools_index(db: Database) -> str:
         return '\n'.join(lines)
 
     # Group by category
-    by_category = {}
+    by_category: dict[str, list[dict[str, Any]]] = {}
     for tool in tools:
         cat = tool.get('category') or 'other'
         if cat not in by_category:

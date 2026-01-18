@@ -69,7 +69,7 @@ app.add_middleware(
 )
 
 # Import and include routers after app is created
-from web.api.routers import auth, jobs, reports, settings, stats, tools  # noqa: E402
+from web.api.routers import auth, export, jobs, reports, settings, stats, tools  # noqa: E402
 
 # Auth routes (public)
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
@@ -80,6 +80,7 @@ app.include_router(tools.router, prefix="/api/tools", tags=["tools"])
 app.include_router(jobs.router, prefix="/api/jobs", tags=["jobs"])
 app.include_router(reports.router, prefix="/api/reports", tags=["reports"])
 app.include_router(settings.router, prefix="/api/settings", tags=["settings"])
+app.include_router(export.router, prefix="/api/export", tags=["export"])
 
 
 @app.get("/api/health")

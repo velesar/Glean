@@ -9,7 +9,7 @@ This scout supports two modes:
 2. Demo mode (uses sample data for testing the pipeline)
 """
 
-from typing import Optional
+from typing import Any, Optional
 
 import httpx
 
@@ -45,7 +45,7 @@ class RedditScout(Scout):
 
     source_name = 'reddit'
 
-    def __init__(self, db: Database, config: dict = None):
+    def __init__(self, db: Database, config: Optional[dict] = None):
         super().__init__(db, config)
         self.subreddits = self.config.get('subreddits', DEFAULT_SUBREDDITS)
         self.post_limit = self.config.get('post_limit', 50)
@@ -197,7 +197,7 @@ class RedditScout(Scout):
             if len(data) < 2:
                 return []
 
-            comments = []
+            comments: list[dict[str, Any]] = []
             self._extract_comments(data[1].get('data', {}).get('children', []), comments)
             return comments
 
@@ -285,7 +285,7 @@ class RedditScout(Scout):
 
     def _get_demo_discoveries(self) -> list[Discovery]:
         """Return sample discoveries for testing the pipeline."""
-        samples = [
+        samples: list[dict[str, Any]] = [
             {
                 'source_url': 'https://www.reddit.com/r/sales/comments/demo1',
                 'raw_text': '''Best AI tools for SDR outreach in 2026?
@@ -393,7 +393,7 @@ Happy to answer questions!''',
         self.client.close()
 
 
-def run_reddit_scout(db: Database, config: dict = None) -> tuple[int, int]:
+def run_reddit_scout(db: Database, config: Optional[dict] = None) -> tuple[int, int]:
     """Convenience function to run the Reddit scout."""
     scout = RedditScout(db, config)
     try:
