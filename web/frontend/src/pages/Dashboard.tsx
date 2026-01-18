@@ -1,3 +1,4 @@
+import { useMemo, useState, useCallback } from 'react'
 import { useStats, useJobs, useStartJob } from '../hooks/useApi'
 import { StatCard } from '../components/StatCard'
 import { JobRow } from '../components/JobRow'
@@ -10,9 +11,33 @@ export function Dashboard() {
   const { data: jobsData } = useJobs()
   const startJob = useStartJob()
 
-  const jobs = jobsData?.jobs || []
-  const runningJobs = jobs.filter((j) => j.status === 'running')
-  const recentJobs = jobs.filter((j) => j.status !== 'running').slice(0, 5)
+  // Track expanded job IDs to persist state across refetches
+  const [expandedJobs, setExpandedJobs] = useState<Set<string>>(new Set())
+
+  const toggleExpanded = useCallback((jobId: string) => {
+    setExpandedJobs((prev) => {
+      const next = new Set(prev)
+      if (next.has(jobId)) {
+        next.delete(jobId)
+      } else {
+        next.add(jobId)
+      }
+      return next
+    })
+  }, [])
+
+  // Memoize job lists to prevent unnecessary re-renders
+  const jobs = useMemo(() => jobsData?.jobs || [], [jobsData?.jobs])
+
+  const runningJobs = useMemo(
+    () => jobs.filter((j) => j.status === 'running'),
+    [jobs]
+  )
+
+  const recentJobs = useMemo(
+    () => jobs.filter((j) => j.status !== 'running').slice(0, 5),
+    [jobs]
+  )
 
   const handleRunScout = () => {
     startJob.mutate({ type: 'scout', options: { demo: DEFAULT_DEMO_MODE } })
@@ -130,7 +155,12 @@ export function Dashboard() {
         ) : (
           <div className="bg-white rounded-lg border border-gray-200">
             {recentJobs.map((job) => (
-              <JobRow key={job.id} job={job} />
+              <JobRow
+                key={job.id}
+                job={job}
+                isExpanded={expandedJobs.has(job.id)}
+                onToggleExpand={() => toggleExpanded(job.id)}
+              />
             ))}
           </div>
         )}

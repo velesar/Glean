@@ -64,7 +64,7 @@ export function useJobs() {
   return useQuery({
     queryKey: ['jobs'],
     queryFn: api.getJobs,
-    refetchInterval: 3000,
+    refetchInterval: 5000, // 5 seconds - balance between responsiveness and stability
   })
 }
 

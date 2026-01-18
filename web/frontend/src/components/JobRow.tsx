@@ -4,6 +4,9 @@ import type { Job, LogEntry } from '../types'
 interface JobRowProps {
   job: Job
   showExpand?: boolean
+  // Controlled expansion props - when provided, parent manages state
+  isExpanded?: boolean
+  onToggleExpand?: () => void
 }
 
 function LogLevelIcon({ level }: { level: LogEntry['level'] }) {
@@ -39,8 +42,18 @@ function formatTime(isoString: string): string {
   return new Date(isoString).toLocaleTimeString()
 }
 
-export function JobRow({ job, showExpand = true }: JobRowProps) {
-  const [isExpanded, setIsExpanded] = useState(false)
+export function JobRow({
+  job,
+  showExpand = true,
+  isExpanded: controlledExpanded,
+  onToggleExpand,
+}: JobRowProps) {
+  // Support both controlled (parent manages state) and uncontrolled (internal state) modes
+  const [internalExpanded, setInternalExpanded] = useState(false)
+  const isControlled = controlledExpanded !== undefined
+  const isExpanded = isControlled ? controlledExpanded : internalExpanded
+  const handleToggle = isControlled ? onToggleExpand : () => setInternalExpanded(!internalExpanded)
+
   const hasLogs = job.logs && job.logs.length > 0
 
   const statusColor = {
@@ -55,7 +68,7 @@ export function JobRow({ job, showExpand = true }: JobRowProps) {
     <div className="border-b border-gray-100 last:border-b-0">
       <div
         className={`p-4 flex items-center justify-between ${hasLogs && showExpand ? 'cursor-pointer hover:bg-gray-50' : ''}`}
-        onClick={() => hasLogs && showExpand && setIsExpanded(!isExpanded)}
+        onClick={() => hasLogs && showExpand && handleToggle?.()}
       >
         <div className="flex items-center gap-3">
           {hasLogs && showExpand && (

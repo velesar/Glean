@@ -461,8 +461,9 @@ async def list_jobs(
         if job_data['id'] not in seen_ids:
             result.append(job_data)
 
-    # Sort by started_at
-    result.sort(key=lambda j: j.get('started_at') or '', reverse=True)
+    # Sort by started_at (descending), then by id for stability
+    # This ensures consistent ordering even when timestamps are identical
+    result.sort(key=lambda j: (j.get('started_at') or '', j.get('id', '')), reverse=True)
 
     return {"jobs": result[:limit]}
 
