@@ -12,6 +12,8 @@ import type {
   BulkDeleteResponse,
   ExportFilters,
   Claim,
+  GroupedClaimsResponse,
+  GroupedClaim,
   Job,
   User,
   AuthToken,
@@ -212,17 +214,59 @@ export async function getToolClaims(id: number): Promise<{ claims: Claim[] }> {
   return fetchJson<{ claims: Claim[] }>(`/tools/${id}/claims`)
 }
 
-export async function getGroupedClaims(id: number): Promise<{ claims: Record<string, Claim[]> }> {
+export async function getGroupedClaims(id: number): Promise<GroupedClaimsResponse> {
   const { claims } = await getToolClaims(id)
-  const grouped: Record<string, Claim[]> = {}
-  for (const claim of claims) {
-    const type = claim.claim_type || 'other'
-    if (!grouped[type]) {
-      grouped[type] = []
-    }
-    grouped[type].push(claim)
+
+  const toGroupedClaim = (claim: Claim): GroupedClaim => ({
+    id: claim.id,
+    claim_type: claim.claim_type,
+    content: claim.content,
+    confidence: claim.confidence ?? 0.5,
+    source_name: claim.source_url || 'unknown',
+    parsed_content: null,
+  })
+
+  const result: GroupedClaimsResponse = {
+    features: [],
+    pricing: [],
+    use_cases: [],
+    audience: [],
+    integrations: [],
+    limitations: [],
+    comparisons: [],
   }
-  return { claims: grouped }
+
+  for (const claim of claims) {
+    const grouped = toGroupedClaim(claim)
+    switch (claim.claim_type) {
+      case 'feature':
+        result.features.push(grouped)
+        break
+      case 'pricing':
+        result.pricing.push(grouped)
+        break
+      case 'use_case':
+        result.use_cases.push(grouped)
+        break
+      case 'audience':
+        result.audience.push(grouped)
+        break
+      case 'integration':
+        result.integrations.push(grouped)
+        break
+      case 'limitation':
+        result.limitations.push(grouped)
+        break
+      case 'comparison':
+        result.comparisons.push(grouped)
+        break
+      default:
+        // Put unknown types in features as fallback
+        result.features.push(grouped)
+    }
+  }
+
+  return result
 }
 
 // Export functions
