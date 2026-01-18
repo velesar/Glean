@@ -2,7 +2,7 @@
 # See https://fly.io/docs/reference/configuration/ for details
 
 # App name - change this to your app name after running `fly launch`
-app = "glean-app"
+app = "glean-ayusuw"
 primary_region = "iad"
 
 [build]
