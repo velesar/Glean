@@ -204,7 +204,7 @@ async def run_scout_job(job_id: str, config: ScoutConfig):
                 job.add_log(f"Running {st.value} scout...", "info")
                 sync_job_to_db(job)
 
-                saved, skipped = run_single_scout(db, st, config, job.user_id)
+                saved, skipped, _ = run_single_scout(db, st, config, job.user_id)
                 total_saved += saved
                 total_skipped += skipped
                 job.add_log(f"{st.value}: {saved} discoveries, {skipped} duplicates", "info")
@@ -222,7 +222,32 @@ async def run_scout_job(job_id: str, config: ScoutConfig):
 
             sync_job_to_db(job)
 
-            total_saved, total_skipped = run_single_scout(db, scout_type, config, job.user_id)
+            total_saved, total_skipped, run_info = run_single_scout(
+                db, scout_type, config, job.user_id
+            )
+
+            # Log diagnostic info if available
+            if run_info:
+                if 'api_posts_returned' in run_info:
+                    job.add_log(
+                        f"API returned {run_info['api_posts_returned']} posts",
+                        "info"
+                    )
+                if run_info.get('filtered_low_votes', 0) > 0:
+                    job.add_log(
+                        f"Filtered {run_info['filtered_low_votes']} posts below min_votes",
+                        "info"
+                    )
+                if run_info.get('filtered_not_relevant', 0) > 0:
+                    job.add_log(
+                        f"Filtered {run_info['filtered_not_relevant']} posts not relevant",
+                        "info"
+                    )
+                if 'graphql_errors' in run_info:
+                    job.add_log(f"GraphQL errors: {run_info['graphql_errors']}", "warning")
+                if 'api_error' in run_info:
+                    job.add_log(f"API error: {run_info['api_error']}", "error")
+
             job.add_log(f"Found {total_saved} discoveries, {total_skipped} duplicates", "info")
 
         job.progress = 100
@@ -294,8 +319,8 @@ def _check_scout_credentials(db, scout_type: ScoutType,
 
 
 def run_single_scout(db, scout_type: ScoutType, config: ScoutConfig,
-                     user_id: Optional[int] = None) -> tuple[int, int]:
-    """Run a single scout and return (saved, skipped)."""
+                     user_id: Optional[int] = None) -> tuple[int, int, Optional[dict]]:
+    """Run a single scout and return (saved, skipped, run_info)."""
     scout_config = {'demo': config.demo}
 
     if scout_type == ScoutType.REDDIT:
@@ -317,7 +342,8 @@ def run_single_scout(db, scout_type: ScoutType, config: ScoutConfig,
                     'username': username,
                     'password': password,
                 }
-        return run_reddit_scout(db, scout_config)
+        saved, skipped = run_reddit_scout(db, scout_config)
+        return saved, skipped, None
 
     elif scout_type == ScoutType.TWITTER:
         from src.scouts.twitter import run_twitter_scout
@@ -331,10 +357,11 @@ def run_single_scout(db, scout_type: ScoutType, config: ScoutConfig,
                 scout_config['twitter'] = {
                     'bearer_token': bearer_token,
                 }
-        return run_twitter_scout(db, scout_config)
+        saved, skipped = run_twitter_scout(db, scout_config)
+        return saved, skipped, None
 
     elif scout_type == ScoutType.PRODUCTHUNT:
-        from src.scouts.producthunt import run_producthunt_scout
+        from src.scouts.producthunt import ProductHuntScout
         scout_config['days_back'] = config.days_back
         scout_config['min_votes'] = config.min_votes
         # Load Product Hunt credentials from user settings
@@ -346,7 +373,14 @@ def run_single_scout(db, scout_type: ScoutType, config: ScoutConfig,
                     'api_key': api_key,
                     'api_secret': api_secret,
                 }
-        return run_producthunt_scout(db, scout_config)
+        # Run with detailed logging
+        scout = ProductHuntScout(db, scout_config)
+        try:
+            discoveries = scout.run()
+            saved, skipped = scout.save_all(discoveries)
+            return saved, skipped, scout.last_run_info or None
+        finally:
+            scout.close()
 
     elif scout_type == ScoutType.WEB:
         from src.scouts.websearch import run_websearch_scout
@@ -372,7 +406,8 @@ def run_single_scout(db, scout_type: ScoutType, config: ScoutConfig,
                         'api_key': api_key,
                         'cx': cx,
                     }
-        return run_websearch_scout(db, scout_config)
+        saved, skipped = run_websearch_scout(db, scout_config)
+        return saved, skipped, None
 
     elif scout_type == ScoutType.RSS:
         from src.scouts.rss import run_rss_scout
@@ -382,9 +417,10 @@ def run_single_scout(db, scout_type: ScoutType, config: ScoutConfig,
                 {'name': f, 'url': f, 'category': 'custom'}
                 for f in config.feeds
             ]
-        return run_rss_scout(db, scout_config)
+        saved, skipped = run_rss_scout(db, scout_config)
+        return saved, skipped, None
 
-    return (0, 0)
+    return (0, 0, None)
 
 
 async def run_analyze_job(job_id: str, config: AnalyzeConfig):

@@ -67,6 +67,9 @@ class ProductHuntScout(Scout):
         self.client = httpx.Client(timeout=30.0, follow_redirects=True)
         self.api_url = 'https://api.producthunt.com/v2/api/graphql'
 
+        # Diagnostic info for logging
+        self.last_run_info: dict = {}
+
     def _authenticate(self) -> bool:
         """Get OAuth access token."""
         if not self.api_key or not self.api_secret:
@@ -122,13 +125,15 @@ class ProductHuntScout(Scout):
         all_discoveries = []
 
         # Fetch recent posts
-        print(f"  Fetching posts from the last {self.days_back} days...")
+        print(f"  Fetching posts from the last {self.days_back} days (min_votes={self.min_votes})...")
         try:
             discoveries = self._fetch_recent_posts()
             all_discoveries.extend(discoveries)
             print(f"    Found {len(discoveries)} relevant products")
         except Exception as e:
             print(f"    Error fetching posts: {e}")
+            import traceback
+            traceback.print_exc()
 
         return all_discoveries
 
@@ -190,25 +195,46 @@ class ProductHuntScout(Scout):
             response.raise_for_status()
             data = response.json()
 
+            # Check for GraphQL errors
+            if 'errors' in data:
+                self.last_run_info['graphql_errors'] = data['errors']
+                print(f"      GraphQL errors: {data['errors']}")
+                return discoveries
+
             posts = data.get('data', {}).get('posts', {}).get('edges', [])
+            self.last_run_info['api_posts_returned'] = len(posts)
+            print(f"      API returned {len(posts)} posts")
+
+            filtered_votes = 0
+            filtered_relevance = 0
 
             for edge in posts:
                 post = edge.get('node', {})
 
                 # Filter by votes
                 if post.get('votesCount', 0) < self.min_votes:
+                    filtered_votes += 1
                     continue
 
                 # Check if relevant to sales/AI
                 if not self._is_sales_ai_relevant(post):
+                    filtered_relevance += 1
                     continue
 
                 discovery = self._post_to_discovery(post)
                 if discovery:
                     discoveries.append(discovery)
 
+            self.last_run_info['filtered_low_votes'] = filtered_votes
+            self.last_run_info['filtered_not_relevant'] = filtered_relevance
+
+            if filtered_votes > 0 or filtered_relevance > 0:
+                print(f"      Filtered: {filtered_votes} below min_votes, "
+                      f"{filtered_relevance} not relevant")
+
         except httpx.HTTPStatusError as e:
-            print(f"      API error: {e.response.status_code}")
+            self.last_run_info['api_error'] = f"{e.response.status_code}: {e.response.text[:200]}"
+            print(f"      API error: {e.response.status_code} - {e.response.text}")
 
         return discoveries
 
