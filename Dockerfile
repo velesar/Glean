@@ -19,7 +19,9 @@ RUN npm ci
 COPY web/frontend/ ./
 
 # Set production environment variables for Vite build
-ENV VITE_DEMO_MODE_DEFAULT=false
+# Using ARG + ENV ensures the variable is available at build time
+ARG VITE_DEMO_MODE_DEFAULT=false
+ENV VITE_DEMO_MODE_DEFAULT=${VITE_DEMO_MODE_DEFAULT}
 
 # Build production bundle
 RUN npm run build
