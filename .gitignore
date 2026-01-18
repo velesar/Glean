@@ -58,3 +58,4 @@ reports/*.html
 reports/*.json
 !reports/.gitkeep
 quality_report.txt
+web/api/db/
