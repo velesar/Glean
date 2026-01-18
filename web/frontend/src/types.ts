@@ -230,3 +230,35 @@ export interface AllSettings {
   scouts: SettingsCategory
   analyzers: SettingsCategory
 }
+
+// Service-grouped API settings types
+export interface ServiceField {
+  key: string
+  label: string
+  placeholder: string
+  required: boolean
+  is_set: boolean
+  value: string | null
+}
+
+export interface ServiceProvider {
+  id: string
+  name: string
+  fields: ServiceField[]
+  is_configured: boolean
+}
+
+export interface ServiceGroup {
+  id: string
+  name: string
+  description: string
+  is_configured: boolean
+  fields?: ServiceField[]
+  has_provider_choice?: boolean
+  providers?: ServiceProvider[]
+  selected_provider?: string
+}
+
+export interface ServicesResponse {
+  services: ServiceGroup[]
+}

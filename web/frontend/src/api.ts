@@ -20,7 +20,8 @@ import type {
   SetupStatus,
   AllSettings,
   ScoutType,
-  ScoutTypeInfo
+  ScoutTypeInfo,
+  ServicesResponse
 } from './types'
 
 const API_BASE = '/api'
@@ -455,6 +456,47 @@ export async function testSetting(
 ): Promise<{ success: boolean; message: string }> {
   return fetchJson<{ success: boolean; message: string }>(
     `/settings/test/${category}/${key}`,
+    { method: 'POST' }
+  )
+}
+
+// Service-grouped settings
+export async function getServices(): Promise<ServicesResponse> {
+  return fetchJson<ServicesResponse>('/settings/services')
+}
+
+export async function updateServiceField(
+  serviceId: string,
+  fieldKey: string,
+  value: string,
+  providerId?: string
+): Promise<{ success: boolean; key: string }> {
+  const params = new URLSearchParams({ field_key: fieldKey, value })
+  if (providerId) {
+    params.append('provider_id', providerId)
+  }
+  return fetchJson<{ success: boolean; key: string }>(
+    `/settings/services/${serviceId}/field?${params.toString()}`,
+    { method: 'PUT' }
+  )
+}
+
+export async function setServiceProvider(
+  serviceId: string,
+  providerId: string
+): Promise<{ success: boolean; provider: string }> {
+  const params = new URLSearchParams({ provider_id: providerId })
+  return fetchJson<{ success: boolean; provider: string }>(
+    `/settings/services/${serviceId}/provider?${params.toString()}`,
+    { method: 'PUT' }
+  )
+}
+
+export async function testService(
+  serviceId: string
+): Promise<{ success: boolean; message: string }> {
+  return fetchJson<{ success: boolean; message: string }>(
+    `/settings/test-service/${serviceId}`,
     { method: 'POST' }
   )
 }

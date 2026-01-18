@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import * as api from '../api'
+import { ServiceCard } from '../components/ServiceCard'
 import type { SettingValue } from '../types'
 
-type SettingCategory = 'api_keys' | 'scouts' | 'analyzers'
+type SettingCategory = 'scouts' | 'analyzers'
 
 interface EditingState {
   category: SettingCategory
@@ -13,17 +14,17 @@ interface EditingState {
 
 export function Settings() {
   const queryClient = useQueryClient()
-  const { data: settings, isLoading } = useQuery({
+  const { data: settings, isLoading: settingsLoading } = useQuery({
     queryKey: ['settings'],
     queryFn: api.getSettings,
   })
 
+  const { data: servicesData, isLoading: servicesLoading } = useQuery({
+    queryKey: ['services'],
+    queryFn: api.getServices,
+  })
+
   const [editing, setEditing] = useState<EditingState | null>(null)
-  const [testResult, setTestResult] = useState<{
-    key: string
-    success: boolean
-    message: string
-  } | null>(null)
 
   const updateMutation = useMutation({
     mutationFn: ({
@@ -34,7 +35,7 @@ export function Settings() {
       category: string
       key: string
       value: string
-    }) => api.updateSetting(category, key, value, category === 'api_keys'),
+    }) => api.updateSetting(category, key, value, true),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] })
       setEditing(null)
@@ -49,14 +50,63 @@ export function Settings() {
     },
   })
 
-  const testMutation = useMutation({
-    mutationFn: ({ category, key }: { category: string; key: string }) =>
-      api.testSetting(category, key),
-    onSuccess: (data, variables) => {
-      setTestResult({ key: variables.key, ...data })
-      setTimeout(() => setTestResult(null), 5000)
+  // Service-related mutations
+  const updateServiceFieldMutation = useMutation({
+    mutationFn: ({
+      serviceId,
+      fieldKey,
+      value,
+      providerId,
+    }: {
+      serviceId: string
+      fieldKey: string
+      value: string
+      providerId?: string
+    }) => api.updateServiceField(serviceId, fieldKey, value, providerId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['services'] })
     },
   })
+
+  const setServiceProviderMutation = useMutation({
+    mutationFn: ({
+      serviceId,
+      providerId,
+    }: {
+      serviceId: string
+      providerId: string
+    }) => api.setServiceProvider(serviceId, providerId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['services'] })
+    },
+  })
+
+  const handleUpdateServiceField = async (
+    serviceId: string,
+    fieldKey: string,
+    value: string,
+    providerId?: string
+  ) => {
+    await updateServiceFieldMutation.mutateAsync({
+      serviceId,
+      fieldKey,
+      value,
+      providerId,
+    })
+  }
+
+  const handleSetServiceProvider = async (
+    serviceId: string,
+    providerId: string
+  ) => {
+    await setServiceProviderMutation.mutateAsync({ serviceId, providerId })
+  }
+
+  const handleTestService = async (serviceId: string) => {
+    return await api.testService(serviceId)
+  }
+
+  const isLoading = settingsLoading || servicesLoading
 
   const handleEdit = (category: SettingCategory, key: string, currentValue: string | null) => {
     setEditing({
@@ -86,10 +136,6 @@ export function Settings() {
     }
   }
 
-  const handleTest = (category: SettingCategory, key: string) => {
-    testMutation.mutate({ category, key })
-  }
-
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -99,13 +145,11 @@ export function Settings() {
   }
 
   const categoryTitles: Record<SettingCategory, string> = {
-    api_keys: 'API Keys',
     scouts: 'Scout Configuration',
     analyzers: 'Analyzer Configuration',
   }
 
   const categoryDescriptions: Record<SettingCategory, string> = {
-    api_keys: 'Configure API credentials for external services',
     scouts: 'Configure data collection settings',
     analyzers: 'Configure AI analysis settings',
   }
@@ -116,7 +160,6 @@ export function Settings() {
     setting: SettingValue
   ) => {
     const isEditing = editing?.category === category && editing?.key === key
-    const showTestButton = category === 'api_keys' && setting.is_set
 
     return (
       <div key={key} className="py-4 border-b border-gray-100 last:border-0">
@@ -130,15 +173,6 @@ export function Settings() {
 
           {!isEditing && (
             <div className="flex items-center gap-2 ml-4">
-              {showTestButton && (
-                <button
-                  onClick={() => handleTest(category, key)}
-                  disabled={testMutation.isPending}
-                  className="px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                >
-                  Test
-                </button>
-              )}
               <button
                 onClick={() =>
                   handleEdit(category, key, setting.is_secret ? '' : setting.value)
@@ -208,13 +242,6 @@ export function Settings() {
             ) : (
               <span className="text-sm text-gray-400 italic">Not configured</span>
             )}
-            {testResult?.key === key && (
-              <span
-                className={`ml-3 text-sm ${testResult.success ? 'text-green-600' : 'text-red-600'}`}
-              >
-                {testResult.message}
-              </span>
-            )}
           </div>
         )}
       </div>
@@ -230,7 +257,27 @@ export function Settings() {
         </p>
       </div>
 
-      {(['api_keys', 'scouts', 'analyzers'] as SettingCategory[]).map((category) => (
+      {/* API Keys Section - Service-grouped architecture */}
+      <section>
+        <h2 className="text-lg font-semibold text-gray-900 mb-1">API Keys</h2>
+        <p className="text-sm text-gray-500 mb-4">
+          Configure API credentials for external services
+        </p>
+        <div className="space-y-3">
+          {servicesData?.services.map((service) => (
+            <ServiceCard
+              key={service.id}
+              service={service}
+              onUpdateField={handleUpdateServiceField}
+              onSetProvider={handleSetServiceProvider}
+              onTest={handleTestService}
+            />
+          ))}
+        </div>
+      </section>
+
+      {/* Scout and Analyzer Configuration Sections */}
+      {(['scouts', 'analyzers'] as SettingCategory[]).map((category) => (
         <section key={category} className="bg-white rounded-lg border border-gray-200 p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-1">
             {categoryTitles[category]}

@@ -180,7 +180,7 @@ async def run_scout_job(job_id: str, config: ScoutConfig):
         return
 
     job.status = JobStatus.RUNNING
-    job.add_log(f"Starting scout job", "info")
+    job.add_log("Starting scout job", "info")
     sync_job_to_db(job)
     scout_type = config.scout_type
 
@@ -223,7 +223,7 @@ async def run_scout_job(job_id: str, config: ScoutConfig):
         job.message = f"Completed: {total_saved} discoveries, {total_skipped} duplicates"
         job.result = {"saved": total_saved, "skipped": total_skipped}
         job.completed_at = datetime.now().isoformat()
-        job.add_log(f"Job completed successfully", "success")
+        job.add_log("Job completed successfully", "success")
         sync_job_to_db(job)
 
     except Exception as e:
@@ -249,6 +249,19 @@ def run_single_scout(db, scout_type: ScoutType, config: ScoutConfig,
         scout_config['include_comments'] = True
         if config.subreddits:
             scout_config['subreddits'] = config.subreddits
+        # Load Reddit credentials from user settings
+        if user_id and not config.demo:
+            client_id = db.get_setting(user_id, 'api_keys', 'reddit_client_id')
+            client_secret = db.get_setting(user_id, 'api_keys', 'reddit_client_secret')
+            username = db.get_setting(user_id, 'api_keys', 'reddit_username')
+            password = db.get_setting(user_id, 'api_keys', 'reddit_password')
+            if all([client_id, client_secret, username, password]):
+                scout_config['reddit'] = {
+                    'client_id': client_id,
+                    'client_secret': client_secret,
+                    'username': username,
+                    'password': password,
+                }
         return run_reddit_scout(db, scout_config)
 
     elif scout_type == ScoutType.TWITTER:
@@ -256,6 +269,13 @@ def run_single_scout(db, scout_type: ScoutType, config: ScoutConfig,
         scout_config['max_results'] = config.limit
         if config.queries:
             scout_config['search_queries'] = config.queries
+        # Load Twitter credentials from user settings
+        if user_id and not config.demo:
+            bearer_token = db.get_setting(user_id, 'api_keys', 'twitter_bearer_token')
+            if bearer_token:
+                scout_config['twitter'] = {
+                    'bearer_token': bearer_token,
+                }
         return run_twitter_scout(db, scout_config)
 
     elif scout_type == ScoutType.PRODUCTHUNT:
@@ -278,6 +298,25 @@ def run_single_scout(db, scout_type: ScoutType, config: ScoutConfig,
         scout_config['results_per_query'] = config.results_per_query
         if config.queries:
             scout_config['search_queries'] = config.queries
+        # Load Web Search credentials from user settings
+        if user_id and not config.demo:
+            provider = db.get_setting(user_id, 'api_keys', 'websearch_provider') or 'serpapi'
+            if provider == 'serpapi':
+                api_key = db.get_setting(user_id, 'api_keys', 'websearch_serpapi_api_key')
+                if api_key:
+                    scout_config['websearch'] = {
+                        'provider': 'serpapi',
+                        'api_key': api_key,
+                    }
+            elif provider == 'google':
+                api_key = db.get_setting(user_id, 'api_keys', 'websearch_google_api_key')
+                cx = db.get_setting(user_id, 'api_keys', 'websearch_google_cx')
+                if api_key and cx:
+                    scout_config['websearch'] = {
+                        'provider': 'google',
+                        'api_key': api_key,
+                        'cx': cx,
+                    }
         return run_websearch_scout(db, scout_config)
 
     elif scout_type == ScoutType.RSS:
