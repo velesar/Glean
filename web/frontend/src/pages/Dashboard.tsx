@@ -2,6 +2,9 @@ import { useStats, useJobs, useStartJob } from '../hooks/useApi'
 import { StatCard } from '../components/StatCard'
 import { JobRow } from '../components/JobRow'
 
+// Default demo mode from environment variable (defaults to true for local dev)
+const DEFAULT_DEMO_MODE = import.meta.env.VITE_DEMO_MODE_DEFAULT !== 'false'
+
 export function Dashboard() {
   const { data: stats, isLoading: statsLoading } = useStats()
   const { data: jobsData } = useJobs()
@@ -12,11 +15,11 @@ export function Dashboard() {
   const recentJobs = jobs.filter((j) => j.status !== 'running').slice(0, 5)
 
   const handleRunScout = () => {
-    startJob.mutate({ type: 'scout', options: { demo: true } })
+    startJob.mutate({ type: 'scout', options: { demo: DEFAULT_DEMO_MODE } })
   }
 
   const handleRunAnalyze = () => {
-    startJob.mutate({ type: 'analyze' })
+    startJob.mutate({ type: 'analyze', options: { demo: DEFAULT_DEMO_MODE } })
   }
 
   const handleRunCurate = () => {

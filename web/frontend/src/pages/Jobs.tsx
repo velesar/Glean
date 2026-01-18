@@ -10,6 +10,9 @@ import {
 } from '../hooks/useApi'
 import type { ScoutType, Job } from '../types'
 
+// Default demo mode from environment variable (defaults to true for local dev)
+const DEFAULT_DEMO_MODE = import.meta.env.VITE_DEMO_MODE_DEFAULT !== 'false'
+
 // Scout type icons (using simple text/emoji representations)
 const SCOUT_ICONS: Record<string, string> = {
   reddit: '📱',
@@ -39,7 +42,7 @@ function ScoutCard({
   onRun: (scoutType: ScoutType, demo: boolean) => void
   isPending: boolean
 }) {
-  const [demoMode, setDemoMode] = useState(true)
+  const [demoMode, setDemoMode] = useState(DEFAULT_DEMO_MODE)
 
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow">

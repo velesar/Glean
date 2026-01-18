@@ -18,6 +18,9 @@ RUN npm ci
 # Copy frontend source
 COPY web/frontend/ ./
 
+# Set production environment variables for Vite build
+ENV VITE_DEMO_MODE_DEFAULT=false
+
 # Build production bundle
 RUN npm run build
 
