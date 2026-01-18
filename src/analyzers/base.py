@@ -124,5 +124,6 @@ CLAIM_TYPES = [
     "integration",      # Connects with other tools
     "limitation",       # What it can't do
     "comparison",       # Compared to competitors
-    "use_case"          # How it's used
+    "use_case",         # How it's used (workflows, applications)
+    "audience"          # Target audience (structured JSON)
 ]

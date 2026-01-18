@@ -45,6 +45,16 @@ INSTRUCTIONS:
 CATEGORIES for tools: {categories}
 CLAIM TYPES: {claim_types}
 
+SPECIAL CLAIM TYPE - "audience":
+For audience claims, the content field should be a JSON string with this structure:
+{{
+  "business_type": "service" | "product" | "hybrid",
+  "digital_focus": "digital" | "non_digital" | "hybrid",
+  "company_size": ["smb", "mid_market", "enterprise"],
+  "industries": ["saas", "agency", "retail", "fintech", "healthcare", "b2b_sales", "tech", "ecommerce", "other"]
+}}
+Only include fields you can infer from the content. If a tool targets SDRs or sales teams, it likely targets B2B SaaS companies.
+
 Respond with valid JSON only, no other text:
 {{
   "tools": [
@@ -58,8 +68,8 @@ Respond with valid JSON only, no other text:
   "claims": [
     {{
       "tool_name": "Tool Name",
-      "claim_type": "feature|pricing|integration|limitation|comparison|use_case",
-      "content": "The specific claim text",
+      "claim_type": "feature|pricing|integration|limitation|comparison|use_case|audience",
+      "content": "The specific claim text (or JSON string for audience)",
       "confidence": 0.7
     }}
   ]

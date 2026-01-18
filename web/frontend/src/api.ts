@@ -1,6 +1,6 @@
 // API client functions
 
-import type { PipelineStats, Tool, Claim, Job, User, AuthToken, SetupStatus, AllSettings, ScoutType, ScoutTypeInfo } from './types'
+import type { PipelineStats, Tool, Claim, Job, User, AuthToken, SetupStatus, AllSettings, ScoutType, ScoutTypeInfo, GroupedClaimsResponse } from './types'
 
 const API_BASE = '/api'
 const TOKEN_KEY = 'glean_token'
@@ -157,6 +157,10 @@ export async function updateToolStatus(
 
 export async function getToolClaims(id: number): Promise<{ claims: Claim[] }> {
   return fetchJson<{ claims: Claim[] }>(`/tools/${id}/claims`)
+}
+
+export async function getGroupedClaims(id: number): Promise<GroupedClaimsResponse> {
+  return fetchJson<GroupedClaimsResponse>(`/tools/${id}/claims/grouped`)
 }
 
 // Jobs

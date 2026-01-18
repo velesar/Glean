@@ -54,6 +54,37 @@ export interface Claim {
   extracted_at: string
 }
 
+// Audience taxonomy types
+export type BusinessType = 'service' | 'product' | 'hybrid'
+export type DigitalFocus = 'digital' | 'non_digital' | 'hybrid'
+export type CompanySize = 'smb' | 'mid_market' | 'enterprise'
+
+export interface AudienceData {
+  business_type?: BusinessType
+  digital_focus?: DigitalFocus
+  company_size?: CompanySize[]
+  industries?: string[]
+}
+
+export interface GroupedClaim {
+  id: number
+  claim_type: string | null
+  content: string
+  confidence: number
+  source_name: string
+  parsed_content?: AudienceData | null
+}
+
+export interface GroupedClaimsResponse {
+  features: GroupedClaim[]
+  pricing: GroupedClaim[]
+  use_cases: GroupedClaim[]
+  audience: GroupedClaim[]
+  integrations: GroupedClaim[]
+  limitations: GroupedClaim[]
+  comparisons: GroupedClaim[]
+}
+
 export type ScoutType = 'reddit' | 'twitter' | 'producthunt' | 'web' | 'rss' | 'all'
 
 export interface ScoutTypeInfo {

@@ -4,6 +4,7 @@ Tools Router
 CRUD operations for tools.
 """
 
+import json
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -156,3 +157,83 @@ async def get_tool_claims(tool_id: int, current_user: dict = Depends(get_current
     claims = db.get_claims_for_tool(tool_id)
 
     return {"claims": claims}
+
+
+class GroupedClaim(BaseModel):
+    """A claim with parsed content."""
+    id: int
+    claim_type: Optional[str]
+    content: str
+    confidence: float
+    source_name: str
+    parsed_content: Optional[dict] = None
+
+
+class GroupedClaimsResponse(BaseModel):
+    """Claims grouped by type."""
+    features: list[GroupedClaim]
+    pricing: list[GroupedClaim]
+    use_cases: list[GroupedClaim]
+    audience: list[GroupedClaim]
+    integrations: list[GroupedClaim]
+    limitations: list[GroupedClaim]
+    comparisons: list[GroupedClaim]
+
+
+@router.get("/{tool_id}/claims/grouped")
+async def get_grouped_claims(tool_id: int, current_user: dict = Depends(get_current_user)):
+    """Get claims for a tool, grouped by type with parsed audience data."""
+    db = get_db()
+    tool = db.get_tool(tool_id)
+
+    if not tool:
+        raise HTTPException(status_code=404, detail="Tool not found")
+
+    claims = db.get_claims_for_tool(tool_id)
+
+    # Initialize groups
+    grouped = {
+        "features": [],
+        "pricing": [],
+        "use_cases": [],
+        "audience": [],
+        "integrations": [],
+        "limitations": [],
+        "comparisons": [],
+    }
+
+    # Map claim_type to group key
+    type_mapping = {
+        "feature": "features",
+        "pricing": "pricing",
+        "use_case": "use_cases",
+        "audience": "audience",
+        "integration": "integrations",
+        "limitation": "limitations",
+        "comparison": "comparisons",
+    }
+
+    for claim in claims:
+        claim_type = claim.get("claim_type", "feature")
+        group_key = type_mapping.get(claim_type, "features")
+
+        # Parse audience JSON if applicable
+        parsed_content = None
+        if claim_type == "audience":
+            try:
+                parsed_content = json.loads(claim.get("content", "{}"))
+            except (json.JSONDecodeError, TypeError):
+                parsed_content = None
+
+        grouped_claim = {
+            "id": claim.get("id"),
+            "claim_type": claim_type,
+            "content": claim.get("content", ""),
+            "confidence": claim.get("confidence", 0.5),
+            "source_name": claim.get("source_name", "unknown"),
+            "parsed_content": parsed_content,
+        }
+
+        grouped[group_key].append(grouped_claim)
+
+    return grouped

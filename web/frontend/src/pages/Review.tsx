@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { useTools, useUpdateToolStatus, useToolClaims } from '../hooks/useApi'
-import { ToolCard } from '../components/ToolCard'
+import { useTools, useUpdateToolStatus, useGroupedClaims } from '../hooks/useApi'
+import { ReviewToolCard } from '../components/ReviewToolCard'
 import type { Tool } from '../types'
 
 export function Review() {
@@ -12,10 +12,12 @@ export function Review() {
   const [showRejectModal, setShowRejectModal] = useState(false)
 
   const tools = data?.tools || []
-  const { data: claimsData } = useToolClaims(selectedTool?.id || 0)
-  const claims = claimsData?.claims || []
-
   const currentTool = tools[currentIndex]
+
+  // Fetch grouped claims for current tool
+  const { data: groupedClaims, isLoading: isLoadingClaims } = useGroupedClaims(
+    currentTool?.id || 0
+  )
 
   const handleApprove = (tool: Tool) => {
     updateStatus.mutate(
@@ -59,10 +61,6 @@ export function Review() {
     moveToNext()
   }
 
-  const viewDetails = (tool: Tool) => {
-    setSelectedTool(tool)
-  }
-
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -93,60 +91,16 @@ export function Review() {
         </span>
       </div>
 
-      {/* Current Tool Card */}
+      {/* Current Tool Card with Claims */}
       {currentTool && (
-        <ToolCard
+        <ReviewToolCard
           tool={currentTool}
-          showActions
+          groupedClaims={groupedClaims}
+          isLoadingClaims={isLoadingClaims}
           onApprove={() => handleApprove(currentTool)}
           onReject={() => handleReject(currentTool)}
           onSkip={handleSkip}
         />
-      )}
-
-      {/* Claims Section */}
-      {currentTool && (
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <h3 className="font-semibold text-gray-900 mb-3">Claims</h3>
-          <button
-            onClick={() => viewDetails(currentTool)}
-            className="text-sm text-blue-600 hover:underline mb-3"
-          >
-            Load claims
-          </button>
-          {selectedTool?.id === currentTool.id && (
-            <div className="space-y-2">
-              {claims.length === 0 ? (
-                <p className="text-sm text-gray-500">No claims extracted yet</p>
-              ) : (
-                claims.map((claim) => (
-                  <div
-                    key={claim.id}
-                    className="flex items-start gap-2 text-sm"
-                  >
-                    <span
-                      className={`px-2 py-0.5 rounded text-xs font-medium ${
-                        claim.claim_type === 'feature'
-                          ? 'bg-blue-100 text-blue-700'
-                          : claim.claim_type === 'pricing'
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-gray-100 text-gray-700'
-                      }`}
-                    >
-                      {claim.claim_type || 'claim'}
-                    </span>
-                    <span className="text-gray-700">{claim.content}</span>
-                    {claim.confidence && (
-                      <span className="text-gray-400">
-                        ({Math.round(claim.confidence * 100)}%)
-                      </span>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-        </div>
       )}
 
       {/* All Queue Items */}

@@ -33,6 +33,14 @@ export function useToolClaims(id: number) {
   })
 }
 
+export function useGroupedClaims(id: number) {
+  return useQuery({
+    queryKey: ['tool', id, 'claims', 'grouped'],
+    queryFn: () => api.getGroupedClaims(id),
+    enabled: !!id,
+  })
+}
+
 export function useUpdateToolStatus() {
   const queryClient = useQueryClient()
   return useMutation({
