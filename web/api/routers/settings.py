@@ -47,6 +47,16 @@ API_KEY_SETTINGS = {
         "description": "Reddit account password for API authentication",
         "placeholder": "password",
     },
+    "producthunt_api_key": {
+        "label": "Product Hunt API Key",
+        "description": "OAuth client ID for Product Hunt API access",
+        "placeholder": "Client ID",
+    },
+    "producthunt_api_secret": {
+        "label": "Product Hunt API Secret",
+        "description": "OAuth client secret for Product Hunt API",
+        "placeholder": "Client Secret",
+    },
 }
 
 SCOUT_SETTINGS = {
@@ -332,6 +342,36 @@ async def test_setting(
                 client = openai.OpenAI(api_key=value)
                 client.models.list()
                 return {"success": True, "message": "OpenAI API key is valid"}
+            except Exception as e:
+                return {"success": False, "message": f"Error: {str(e)}"}
+
+        elif key in ("producthunt_api_key", "producthunt_api_secret"):
+            # Test Product Hunt credentials (need both key and secret)
+            api_key = db.get_setting(current_user["id"], "api_keys", "producthunt_api_key")
+            api_secret = db.get_setting(current_user["id"], "api_keys", "producthunt_api_secret")
+
+            if not api_key or not api_secret:
+                return {
+                    "success": False,
+                    "message": "Both API Key and API Secret must be configured to test"
+                }
+
+            try:
+                import requests
+                response = requests.post(
+                    "https://api.producthunt.com/v2/oauth/token",
+                    json={
+                        "client_id": api_key,
+                        "client_secret": api_secret,
+                        "grant_type": "client_credentials",
+                    },
+                    timeout=10,
+                )
+                if response.status_code == 200 and response.json().get("access_token"):
+                    return {"success": True, "message": "Product Hunt credentials are valid"}
+                else:
+                    error = response.json().get("error", "Unknown error")
+                    return {"success": False, "message": f"Invalid credentials: {error}"}
             except Exception as e:
                 return {"success": False, "message": f"Error: {str(e)}"}
 

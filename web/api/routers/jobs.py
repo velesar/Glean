@@ -204,7 +204,7 @@ async def run_scout_job(job_id: str, config: ScoutConfig):
                 job.add_log(f"Running {st.value} scout...", "info")
                 sync_job_to_db(job)
 
-                saved, skipped = run_single_scout(db, st, config)
+                saved, skipped = run_single_scout(db, st, config, job.user_id)
                 total_saved += saved
                 total_skipped += skipped
                 job.add_log(f"{st.value}: {saved} discoveries, {skipped} duplicates", "info")
@@ -215,7 +215,7 @@ async def run_scout_job(job_id: str, config: ScoutConfig):
             job.add_log(f"Running {scout_type.value} scout...", "info")
             sync_job_to_db(job)
 
-            total_saved, total_skipped = run_single_scout(db, scout_type, config)
+            total_saved, total_skipped = run_single_scout(db, scout_type, config, job.user_id)
             job.add_log(f"Found {total_saved} discoveries, {total_skipped} duplicates", "info")
 
         job.progress = 100
@@ -238,7 +238,8 @@ async def run_scout_job(job_id: str, config: ScoutConfig):
         _job_cache.pop(job_id, None)
 
 
-def run_single_scout(db, scout_type: ScoutType, config: ScoutConfig) -> tuple[int, int]:
+def run_single_scout(db, scout_type: ScoutType, config: ScoutConfig,
+                     user_id: Optional[int] = None) -> tuple[int, int]:
     """Run a single scout and return (saved, skipped)."""
     scout_config = {'demo': config.demo}
 
@@ -261,6 +262,15 @@ def run_single_scout(db, scout_type: ScoutType, config: ScoutConfig) -> tuple[in
         from src.scouts.producthunt import run_producthunt_scout
         scout_config['days_back'] = config.days_back
         scout_config['min_votes'] = config.min_votes
+        # Load Product Hunt credentials from user settings
+        if user_id and not config.demo:
+            api_key = db.get_setting(user_id, 'api_keys', 'producthunt_api_key')
+            api_secret = db.get_setting(user_id, 'api_keys', 'producthunt_api_secret')
+            if api_key and api_secret:
+                scout_config['producthunt'] = {
+                    'api_key': api_key,
+                    'api_secret': api_secret,
+                }
         return run_producthunt_scout(db, scout_config)
 
     elif scout_type == ScoutType.WEB:
@@ -552,7 +562,7 @@ async def start_scout(
     current_user: dict = Depends(get_current_user)
 ):
     """Start a scout job."""
-    job = create_job(JobType.SCOUT, scout_type=config.scout_type.value)
+    job = create_job(JobType.SCOUT, scout_type=config.scout_type.value, user_id=current_user.get('id'))
     background_tasks.add_task(run_scout_job, job.id, config)
     return {"job_id": job.id, "status": job.status, "scout_type": config.scout_type}
 
