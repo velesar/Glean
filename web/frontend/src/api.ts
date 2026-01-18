@@ -212,6 +212,19 @@ export async function getToolClaims(id: number): Promise<{ claims: Claim[] }> {
   return fetchJson<{ claims: Claim[] }>(`/tools/${id}/claims`)
 }
 
+export async function getGroupedClaims(id: number): Promise<{ claims: Record<string, Claim[]> }> {
+  const { claims } = await getToolClaims(id)
+  const grouped: Record<string, Claim[]> = {}
+  for (const claim of claims) {
+    const type = claim.claim_type || 'other'
+    if (!grouped[type]) {
+      grouped[type] = []
+    }
+    grouped[type].push(claim)
+  }
+  return { claims: grouped }
+}
+
 // Export functions
 export function getExportUrl(
   type: 'tools' | 'claims' | 'all',
