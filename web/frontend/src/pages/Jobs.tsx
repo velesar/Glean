@@ -185,6 +185,9 @@ export function Jobs() {
   const startUpdateJob = useStartUpdateJob()
   const cancelJob = useCancelJob()
 
+  // Analyzer mock mode state - defaults to DEMO_MODE_ENABLED but can be toggled
+  const [analyzerMockMode, setAnalyzerMockMode] = useState(DEMO_MODE_ENABLED)
+
   const jobs = jobsData?.jobs || []
   const scoutTypes = scoutTypesData?.scout_types || []
 
@@ -242,17 +245,30 @@ export function Jobs() {
                 <p className="text-sm text-gray-500">Extract tools and claims from discoveries</p>
               </div>
             </div>
-            <div className="flex items-center justify-between mt-4">
-              <span className="text-xs text-gray-400">
-                {DEMO_MODE_ENABLED ? 'Uses mock analyzer' : 'Uses Claude API'}
-              </span>
-              <button
-                onClick={() => startAnalyzeJob.mutate({ mock: DEMO_MODE_ENABLED, limit: 10 })}
-                disabled={isAnyJobPending}
-                className="px-3 py-1.5 bg-purple-600 text-white text-sm font-medium rounded-md hover:bg-purple-700 disabled:opacity-50 transition-colors"
-              >
-                Run
-              </button>
+            <div className="mt-4">
+              <label className="flex items-center gap-2 text-sm mb-3">
+                <input
+                  type="checkbox"
+                  checked={analyzerMockMode}
+                  onChange={(e) => setAnalyzerMockMode(e.target.checked)}
+                  className="rounded border-gray-300"
+                />
+                <span className="text-gray-600">
+                  Mock mode {analyzerMockMode ? '(pattern matching)' : '(Claude API)'}
+                </span>
+              </label>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-400">
+                  {analyzerMockMode ? 'Uses mock analyzer' : 'Uses Claude API'}
+                </span>
+                <button
+                  onClick={() => startAnalyzeJob.mutate({ mock: analyzerMockMode, limit: 10 })}
+                  disabled={isAnyJobPending}
+                  className="px-3 py-1.5 bg-purple-600 text-white text-sm font-medium rounded-md hover:bg-purple-700 disabled:opacity-50 transition-colors"
+                >
+                  Run
+                </button>
+              </div>
             </div>
           </div>
 
