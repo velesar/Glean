@@ -4,6 +4,7 @@ Jobs Router
 Background job management for scouts, analyzers, etc.
 """
 
+import os
 import uuid
 from datetime import datetime
 from enum import Enum
@@ -13,6 +14,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 
 from web.api.deps import get_current_user, get_db
+from web.api.routers.settings import is_service_configured
 
 router = APIRouter()
 
@@ -75,7 +77,6 @@ class Job(BaseModel):
 class ScoutConfig(BaseModel):
     """Scout job configuration."""
     scout_type: ScoutType = ScoutType.REDDIT
-    demo: bool = True
     # Reddit options
     subreddits: Optional[list[str]] = None
     limit: int = 50
@@ -93,7 +94,6 @@ class ScoutConfig(BaseModel):
 
 class AnalyzeConfig(BaseModel):
     """Analyze job configuration."""
-    mock: bool = True
     limit: int = 10
 
 
@@ -105,6 +105,82 @@ class CurateConfig(BaseModel):
 
 # In-memory cache for active jobs (synced with database)
 _job_cache: dict[str, Job] = {}
+
+
+# ============================================================================
+# Mode Auto-Detection
+# ============================================================================
+
+
+def _is_test_environment() -> bool:
+    """Check if running in test/development environment."""
+    env = os.environ.get('GLEAN_ENVIRONMENT', 'production').lower()
+    return env in ('development', 'test', 'dev')
+
+
+def _determine_scout_mode(db, scout_type: ScoutType,
+                          user_id: Optional[int]) -> tuple[bool, str]:
+    """Determine if scout should use demo mode.
+
+    Returns: (use_demo: bool, reason: str)
+    """
+    # Priority 1: Test environment forces demo mode
+    if _is_test_environment():
+        return True, "test environment"
+
+    # Priority 2: Check credentials
+    service_map = {
+        ScoutType.REDDIT: "reddit",
+        ScoutType.TWITTER: "twitter",
+        ScoutType.PRODUCTHUNT: "producthunt",
+        ScoutType.WEB: "websearch",
+        ScoutType.RSS: None,  # No credentials needed
+        ScoutType.ALL: None,  # Handled specially
+    }
+
+    service_id = service_map.get(scout_type)
+
+    if service_id is None:
+        # RSS scout or ALL - no credentials needed for RSS
+        if scout_type == ScoutType.RSS:
+            return False, "no credentials required"
+        # For ALL, we'll use demo mode if any required service is not configured
+        if scout_type == ScoutType.ALL:
+            if not user_id:
+                return True, "no user context"
+            # Check if at least one API-requiring scout has credentials
+            for st, sid in service_map.items():
+                if sid and is_service_configured(db, user_id, sid):
+                    return False, "some credentials configured"
+            return True, "no service credentials configured"
+        return False, "no credentials required"
+
+    if not user_id:
+        return True, "no user context"
+
+    if is_service_configured(db, user_id, service_id):
+        return False, f"{service_id} credentials configured"
+    else:
+        return True, f"{service_id} credentials not configured"
+
+
+def _determine_analyzer_mode(db, user_id: Optional[int]) -> tuple[bool, str]:
+    """Determine if analyzer should use mock mode.
+
+    Returns: (use_mock: bool, reason: str)
+    """
+    # Priority 1: Test environment forces mock mode
+    if _is_test_environment():
+        return True, "test environment"
+
+    # Priority 2: Check credentials
+    if not user_id:
+        return True, "no user context"
+
+    if is_service_configured(db, user_id, "anthropic"):
+        return False, "Anthropic API key configured"
+    else:
+        return True, "Anthropic API key not configured"
 
 
 def create_job(job_type: JobType, scout_type: Optional[str] = None,
@@ -189,6 +265,11 @@ async def run_scout_job(job_id: str, config: ScoutConfig):
         total_saved = 0
         total_skipped = 0
 
+        # Auto-detect mode based on environment and credentials
+        use_demo, mode_reason = _determine_scout_mode(db, scout_type, job.user_id)
+        mode_label = "DEMO" if use_demo else "REAL"
+        job.add_log(f"Mode: {mode_label} ({mode_reason})", "info")
+
         if scout_type == ScoutType.ALL:
             # Run all scouts
             scouts_to_run = [
@@ -204,7 +285,9 @@ async def run_scout_job(job_id: str, config: ScoutConfig):
                 job.add_log(f"Running {st.value} scout...", "info")
                 sync_job_to_db(job)
 
-                saved, skipped, _ = run_single_scout(db, st, config, job.user_id)
+                saved, skipped, _ = run_single_scout(
+                    db, st, config, job.user_id, use_demo=use_demo
+                )
                 total_saved += saved
                 total_skipped += skipped
                 job.add_log(f"{st.value}: {saved} discoveries, {skipped} duplicates", "info")
@@ -213,17 +296,10 @@ async def run_scout_job(job_id: str, config: ScoutConfig):
             job.message = f"Running {scout_type.value} scout..."
             job.progress = 10
             job.add_log(f"Running {scout_type.value} scout...", "info")
-
-            # Log credential status for scouts that need API keys
-            if not config.demo:
-                creds_status = _check_scout_credentials(db, scout_type, job.user_id)
-                if creds_status:
-                    job.add_log(creds_status, "info")
-
             sync_job_to_db(job)
 
             total_saved, total_skipped, run_info = run_single_scout(
-                db, scout_type, config, job.user_id
+                db, scout_type, config, job.user_id, use_demo=use_demo
             )
 
             # Log diagnostic info if available
@@ -253,7 +329,11 @@ async def run_scout_job(job_id: str, config: ScoutConfig):
         job.progress = 100
         job.status = JobStatus.COMPLETED
         job.message = f"Completed: {total_saved} discoveries, {total_skipped} duplicates"
-        job.result = {"saved": total_saved, "skipped": total_skipped}
+        job.result = {
+            "saved": total_saved,
+            "skipped": total_skipped,
+            "mode": "demo" if use_demo else "real",
+        }
         job.completed_at = datetime.now().isoformat()
         job.add_log("Job completed successfully", "success")
         sync_job_to_db(job)
@@ -319,9 +399,10 @@ def _check_scout_credentials(db, scout_type: ScoutType,
 
 
 def run_single_scout(db, scout_type: ScoutType, config: ScoutConfig,
-                     user_id: Optional[int] = None) -> tuple[int, int, Optional[dict]]:
+                     user_id: Optional[int] = None,
+                     use_demo: bool = True) -> tuple[int, int, Optional[dict]]:
     """Run a single scout and return (saved, skipped, run_info)."""
-    scout_config = {'demo': config.demo}
+    scout_config = {'demo': use_demo}
 
     if scout_type == ScoutType.REDDIT:
         from src.scouts.reddit import run_reddit_scout
@@ -330,7 +411,7 @@ def run_single_scout(db, scout_type: ScoutType, config: ScoutConfig,
         if config.subreddits:
             scout_config['subreddits'] = config.subreddits
         # Load Reddit credentials from user settings
-        if user_id and not config.demo:
+        if user_id and not use_demo:
             client_id = db.get_setting(user_id, 'api_keys', 'reddit_client_id')
             client_secret = db.get_setting(user_id, 'api_keys', 'reddit_client_secret')
             username = db.get_setting(user_id, 'api_keys', 'reddit_username')
@@ -351,7 +432,7 @@ def run_single_scout(db, scout_type: ScoutType, config: ScoutConfig,
         if config.queries:
             scout_config['search_queries'] = config.queries
         # Load Twitter credentials from user settings
-        if user_id and not config.demo:
+        if user_id and not use_demo:
             bearer_token = db.get_setting(user_id, 'api_keys', 'twitter_bearer_token')
             if bearer_token:
                 scout_config['twitter'] = {
@@ -365,7 +446,7 @@ def run_single_scout(db, scout_type: ScoutType, config: ScoutConfig,
         scout_config['days_back'] = config.days_back
         scout_config['min_votes'] = config.min_votes
         # Load Product Hunt credentials from user settings
-        if user_id and not config.demo:
+        if user_id and not use_demo:
             api_key = db.get_setting(user_id, 'api_keys', 'producthunt_api_key')
             api_secret = db.get_setting(user_id, 'api_keys', 'producthunt_api_secret')
             if api_key and api_secret:
@@ -388,7 +469,7 @@ def run_single_scout(db, scout_type: ScoutType, config: ScoutConfig,
         if config.queries:
             scout_config['search_queries'] = config.queries
         # Load Web Search credentials from user settings
-        if user_id and not config.demo:
+        if user_id and not use_demo:
             provider = db.get_setting(user_id, 'api_keys', 'websearch_provider') or 'serpapi'
             if provider == 'serpapi':
                 api_key = db.get_setting(user_id, 'api_keys', 'websearch_serpapi_api_key')
@@ -439,27 +520,24 @@ async def run_analyze_job(job_id: str, config: AnalyzeConfig):
 
         db = get_db()
 
+        # Auto-detect mode based on environment and credentials
+        use_mock, mode_reason = _determine_analyzer_mode(db, job.user_id)
+        mode_label = "MOCK" if use_mock else "REAL"
+        job.add_log(f"Mode: {mode_label} ({mode_reason})", "info")
+
         analyzer_config = {
             'limit': config.limit,
         }
 
         # Load API key from user settings if not using mock mode
-        use_mock = config.mock
-        if not use_mock and job.user_id:
+        if not use_mock:
             api_key = db.get_setting(job.user_id, 'api_keys', 'anthropic')
             if api_key:
                 analyzer_config['api_key'] = api_key
-                job.add_log("Using Anthropic API key from settings", "info")
-            else:
-                job.add_log("No Anthropic API key found in settings, falling back to mock mode", "warning")
-                use_mock = True
-        elif not use_mock:
-            job.add_log("No user context available, falling back to mock mode", "warning")
-            use_mock = True
 
         job.progress = 10
         job.message = "Analyzing discoveries..."
-        job.add_log(f"Analyzing up to {config.limit} discoveries (mock={use_mock})", "info")
+        job.add_log(f"Analyzing up to {config.limit} discoveries", "info")
         sync_job_to_db(job)
 
         result = run_analyzer(db, analyzer_config, use_mock=use_mock)
@@ -472,6 +550,7 @@ async def run_analyze_job(job_id: str, config: AnalyzeConfig):
             "tools_extracted": result['tools_extracted'],
             "claims_extracted": result['claims_extracted'],
             "errors": result['errors'],
+            "mode": "mock" if use_mock else "real",
         }
         job.completed_at = datetime.now().isoformat()
         job.add_log(f"Processed {result['processed']} discoveries", "info")

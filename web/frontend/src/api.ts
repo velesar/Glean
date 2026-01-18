@@ -333,7 +333,6 @@ export async function getScoutTypes(): Promise<{ scout_types: ScoutTypeInfo[] }>
 
 export interface ScoutJobOptions {
   scout_type: ScoutType
-  demo?: boolean
   limit?: number
   subreddits?: string[]
   queries?: string[]
@@ -345,7 +344,6 @@ export interface ScoutJobOptions {
 }
 
 export interface AnalyzeJobOptions {
-  mock?: boolean
   limit?: number
 }
 
@@ -391,12 +389,12 @@ export async function startUpdateJob(): Promise<{ job_id: string; status: string
 // Legacy function for backwards compatibility
 export async function startJob(
   type: 'scout' | 'analyze' | 'curate' | 'update',
-  options?: { demo?: boolean; scout_type?: ScoutType }
+  options?: { scout_type?: ScoutType }
 ): Promise<{ job_id: string; status: string }> {
   if (type === 'scout') {
-    return startScoutJob({ scout_type: options?.scout_type || 'reddit', demo: options?.demo })
+    return startScoutJob({ scout_type: options?.scout_type || 'reddit' })
   } else if (type === 'analyze') {
-    return startAnalyzeJob({ mock: options?.demo })
+    return startAnalyzeJob({})
   } else if (type === 'curate') {
     return startCurateJob()
   } else {

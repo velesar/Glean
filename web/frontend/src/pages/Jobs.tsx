@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import {
   useJobs,
   useScoutTypes,
@@ -9,9 +8,6 @@ import {
   useCancelJob,
 } from '../hooks/useApi'
 import type { ScoutType, Job } from '../types'
-
-// Demo mode: false in production (.env.production), true in development (.env.development)
-const DEMO_MODE_ENABLED = import.meta.env.VITE_DEMO_MODE_DEFAULT !== 'false'
 
 // Scout type icons (using simple text/emoji representations)
 const SCOUT_ICONS: Record<string, string> = {
@@ -39,12 +35,9 @@ function ScoutCard({
   description: string
   icon: string
   requires_api: boolean
-  onRun: (scoutType: ScoutType, demo: boolean) => void
+  onRun: (scoutType: ScoutType) => void
   isPending: boolean
 }) {
-  // Only show demo mode toggle in development
-  const [demoMode, setDemoMode] = useState(DEMO_MODE_ENABLED)
-
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between mb-3">
@@ -58,28 +51,12 @@ function ScoutCard({
       </div>
 
       <div className="flex items-center justify-between mt-4">
-        {/* Only show demo mode checkbox in development environment */}
-        {DEMO_MODE_ENABLED ? (
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={demoMode}
-              onChange={(e) => setDemoMode(e.target.checked)}
-              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-            />
-            <span className="text-gray-600">Demo mode</span>
-            {requires_api && !demoMode && (
-              <span className="text-xs text-amber-600">(requires API key)</span>
-            )}
-          </label>
-        ) : (
-          <span className="text-xs text-gray-400">
-            {requires_api ? 'Requires API key' : 'Ready to run'}
-          </span>
-        )}
+        <span className="text-xs text-gray-400">
+          {requires_api ? 'Auto-detects credentials' : 'Ready to run'}
+        </span>
 
         <button
-          onClick={() => onRun(id, demoMode)}
+          onClick={() => onRun(id)}
           disabled={isPending}
           className="px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
         >
@@ -162,13 +139,28 @@ function JobCard({ job, onCancel }: { job: Job; onCancel: () => void }) {
       )}
 
       {job.result && job.status === 'completed' && (
-        <div className="text-sm text-gray-500 mt-2 flex gap-4">
-          {Object.entries(job.result).map(([key, value]) => (
-            <span key={key}>
-              <span className="text-gray-400">{key.replace('_', ' ')}:</span>{' '}
-              <span className="font-medium text-gray-700">{String(value)}</span>
+        <div className="text-sm text-gray-500 mt-2 flex flex-wrap gap-4 items-center">
+          {/* Show mode indicator */}
+          {typeof job.result.mode === 'string' && (
+            <span
+              className={`px-2 py-0.5 text-xs font-medium rounded ${
+                job.result.mode === 'demo' || job.result.mode === 'mock'
+                  ? 'bg-yellow-100 text-yellow-700'
+                  : 'bg-green-100 text-green-700'
+              }`}
+            >
+              {job.result.mode.toUpperCase()}
             </span>
-          ))}
+          )}
+          {/* Existing result fields (excluding mode) */}
+          {Object.entries(job.result)
+            .filter(([key]) => key !== 'mode')
+            .map(([key, value]) => (
+              <span key={key}>
+                <span className="text-gray-400">{key.replace('_', ' ')}:</span>{' '}
+                <span className="font-medium text-gray-700">{String(value)}</span>
+              </span>
+            ))}
         </div>
       )}
     </div>
@@ -185,17 +177,14 @@ export function Jobs() {
   const startUpdateJob = useStartUpdateJob()
   const cancelJob = useCancelJob()
 
-  // Analyzer mock mode state - defaults to DEMO_MODE_ENABLED but can be toggled
-  const [analyzerMockMode, setAnalyzerMockMode] = useState(DEMO_MODE_ENABLED)
-
   const jobs = jobsData?.jobs || []
   const scoutTypes = scoutTypesData?.scout_types || []
 
   const runningJobs = jobs.filter((j) => j.status === 'running' || j.status === 'pending')
   const recentJobs = jobs.filter((j) => j.status !== 'running' && j.status !== 'pending')
 
-  const handleRunScout = (scoutType: ScoutType, demo: boolean) => {
-    startScoutJob.mutate({ scout_type: scoutType, demo })
+  const handleRunScout = (scoutType: ScoutType) => {
+    startScoutJob.mutate({ scout_type: scoutType })
   }
 
   const isAnyJobPending =
@@ -245,30 +234,15 @@ export function Jobs() {
                 <p className="text-sm text-gray-500">Extract tools and claims from discoveries</p>
               </div>
             </div>
-            <div className="mt-4">
-              <label className="flex items-center gap-2 text-sm mb-3">
-                <input
-                  type="checkbox"
-                  checked={analyzerMockMode}
-                  onChange={(e) => setAnalyzerMockMode(e.target.checked)}
-                  className="rounded border-gray-300"
-                />
-                <span className="text-gray-600">
-                  Mock mode {analyzerMockMode ? '(pattern matching)' : '(Claude API)'}
-                </span>
-              </label>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-400">
-                  {analyzerMockMode ? 'Uses mock analyzer' : 'Uses Claude API'}
-                </span>
-                <button
-                  onClick={() => startAnalyzeJob.mutate({ mock: analyzerMockMode, limit: 10 })}
-                  disabled={isAnyJobPending}
-                  className="px-3 py-1.5 bg-purple-600 text-white text-sm font-medium rounded-md hover:bg-purple-700 disabled:opacity-50 transition-colors"
-                >
-                  Run
-                </button>
-              </div>
+            <div className="flex items-center justify-between mt-4">
+              <span className="text-xs text-gray-400">Auto-detects API key</span>
+              <button
+                onClick={() => startAnalyzeJob.mutate({ limit: 10 })}
+                disabled={isAnyJobPending}
+                className="px-3 py-1.5 bg-purple-600 text-white text-sm font-medium rounded-md hover:bg-purple-700 disabled:opacity-50 transition-colors"
+              >
+                Run
+              </button>
             </div>
           </div>
 

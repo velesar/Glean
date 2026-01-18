@@ -373,6 +373,43 @@ def _get_service_setting_key(service_id: str, field_key: str,
     return f"{service_id}_{field_key}"
 
 
+def is_service_configured(db, user_id: int, service_id: str) -> bool:
+    """Check if all required credentials are configured for a service.
+
+    Args:
+        db: Database instance
+        user_id: User ID to check settings for
+        service_id: Service identifier (e.g., 'reddit', 'anthropic')
+
+    Returns:
+        True if all required fields are configured, False otherwise
+    """
+    if service_id not in SERVICE_GROUPS:
+        return False
+
+    service_def = SERVICE_GROUPS[service_id]
+
+    # Handle provider-based services (websearch)
+    if service_def.get("has_provider_choice"):
+        selected_provider = (
+            db.get_setting(user_id, "api_keys", "websearch_provider") or "serpapi"
+        )
+        provider_def = service_def["providers"].get(selected_provider, {})
+        fields = provider_def.get("fields", [])
+        for field in fields:
+            key = f"websearch_{selected_provider}_{field['key']}"
+            if field.get("required") and not db.get_setting(user_id, "api_keys", key):
+                return False
+        return True
+
+    # Handle simple services
+    for field in service_def.get("fields", []):
+        key = _get_service_setting_key(service_id, field["key"])
+        if field.get("required") and not db.get_setting(user_id, "api_keys", key):
+            return False
+    return True
+
+
 def _build_service_field(field_def: dict, value: Optional[str],
                          is_set: bool) -> dict:
     """Build a service field response."""
