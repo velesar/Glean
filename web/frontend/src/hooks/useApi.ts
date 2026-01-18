@@ -13,7 +13,7 @@ export function useStats() {
 export function useTools(status?: string) {
   return useQuery({
     queryKey: ['tools', status],
-    queryFn: () => api.getTools(status),
+    queryFn: () => api.getTools(status ? { status } : undefined),
   })
 }
 
