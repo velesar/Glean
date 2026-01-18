@@ -213,6 +213,13 @@ async def run_scout_job(job_id: str, config: ScoutConfig):
             job.message = f"Running {scout_type.value} scout..."
             job.progress = 10
             job.add_log(f"Running {scout_type.value} scout...", "info")
+
+            # Log credential status for scouts that need API keys
+            if not config.demo:
+                creds_status = _check_scout_credentials(db, scout_type, job.user_id)
+                if creds_status:
+                    job.add_log(creds_status, "info")
+
             sync_job_to_db(job)
 
             total_saved, total_skipped = run_single_scout(db, scout_type, config, job.user_id)
@@ -236,6 +243,54 @@ async def run_scout_job(job_id: str, config: ScoutConfig):
     finally:
         # Remove from cache when done
         _job_cache.pop(job_id, None)
+
+
+def _check_scout_credentials(db, scout_type: ScoutType,
+                             user_id: Optional[int]) -> Optional[str]:
+    """Check if credentials are configured for a scout type.
+
+    Returns a status message or None if no message needed.
+    """
+    if not user_id:
+        return "No user context - credentials cannot be loaded"
+
+    if scout_type == ScoutType.REDDIT:
+        client_id = db.get_setting(user_id, 'api_keys', 'reddit_client_id')
+        client_secret = db.get_setting(user_id, 'api_keys', 'reddit_client_secret')
+        username = db.get_setting(user_id, 'api_keys', 'reddit_username')
+        password = db.get_setting(user_id, 'api_keys', 'reddit_password')
+        if all([client_id, client_secret, username, password]):
+            return "Using Reddit credentials from settings"
+        return "Reddit credentials not configured - scout will return empty results"
+
+    elif scout_type == ScoutType.TWITTER:
+        bearer_token = db.get_setting(user_id, 'api_keys', 'twitter_bearer_token')
+        if bearer_token:
+            return "Using Twitter credentials from settings"
+        return "Twitter credentials not configured - scout will return empty results"
+
+    elif scout_type == ScoutType.PRODUCTHUNT:
+        api_key = db.get_setting(user_id, 'api_keys', 'producthunt_api_key')
+        api_secret = db.get_setting(user_id, 'api_keys', 'producthunt_api_secret')
+        if api_key and api_secret:
+            return "Using Product Hunt credentials from settings"
+        return "Product Hunt credentials not configured - scout will return empty results"
+
+    elif scout_type == ScoutType.WEB:
+        provider = db.get_setting(user_id, 'api_keys', 'websearch_provider') or 'serpapi'
+        if provider == 'serpapi':
+            api_key = db.get_setting(user_id, 'api_keys', 'websearch_serpapi_api_key')
+            if api_key:
+                return "Using SerpAPI credentials from settings"
+            return "SerpAPI credentials not configured - scout will return empty results"
+        elif provider == 'google':
+            api_key = db.get_setting(user_id, 'api_keys', 'websearch_google_api_key')
+            cx = db.get_setting(user_id, 'api_keys', 'websearch_google_cx')
+            if api_key and cx:
+                return "Using Google CSE credentials from settings"
+            return "Google CSE credentials not configured - scout will return empty results"
+
+    return None
 
 
 def run_single_scout(db, scout_type: ScoutType, config: ScoutConfig,
