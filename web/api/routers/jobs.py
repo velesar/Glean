@@ -41,6 +41,13 @@ class ScoutType(str, Enum):
     ALL = "all"
 
 
+class LogEntry(BaseModel):
+    """A single log entry for a job."""
+    timestamp: str
+    level: str  # info, warning, error, success
+    message: str
+
+
 class Job(BaseModel):
     """Job model."""
     id: str
@@ -53,6 +60,15 @@ class Job(BaseModel):
     completed_at: Optional[str] = None
     error: Optional[str] = None
     scout_type: Optional[str] = None
+    logs: list[LogEntry] = []
+
+    def add_log(self, message: str, level: str = "info"):
+        """Add a log entry to the job."""
+        self.logs.append(LogEntry(
+            timestamp=datetime.now().isoformat(),
+            level=level,
+            message=message
+        ))
 
 
 class ScoutConfig(BaseModel):
@@ -112,6 +128,7 @@ async def run_scout_job(job_id: str, config: ScoutConfig):
 
     job.status = JobStatus.RUNNING
     scout_type = config.scout_type
+    job.add_log(f"Starting scout job (type: {scout_type.value}, demo: {config.demo})")
 
     try:
         db = get_db()
@@ -127,31 +144,42 @@ async def run_scout_job(job_id: str, config: ScoutConfig):
                 ScoutType.WEB,
                 ScoutType.RSS,
             ]
+            job.add_log(f"Running all {len(scouts_to_run)} scouts")
+
             for i, st in enumerate(scouts_to_run):
                 job.message = f"Running {st.value} scout..."
                 job.progress = int((i / len(scouts_to_run)) * 90)
+                job.add_log(f"Starting {st.value} scout...")
 
-                saved, skipped = run_single_scout(db, st, config)
-                total_saved += saved
-                total_skipped += skipped
+                try:
+                    saved, skipped = run_single_scout(db, st, config)
+                    total_saved += saved
+                    total_skipped += skipped
+                    job.add_log(f"{st.value}: {saved} saved, {skipped} skipped", "success")
+                except Exception as e:
+                    job.add_log(f"{st.value}: Failed - {str(e)}", "error")
 
         else:
             job.message = f"Running {scout_type.value} scout..."
             job.progress = 10
+            job.add_log(f"Running {scout_type.value} scout...")
 
             total_saved, total_skipped = run_single_scout(db, scout_type, config)
+            job.add_log(f"Found {total_saved} discoveries, {total_skipped} duplicates", "success")
 
         job.progress = 100
         job.status = JobStatus.COMPLETED
         job.message = f"Completed: {total_saved} discoveries, {total_skipped} duplicates"
         job.result = {"saved": total_saved, "skipped": total_skipped}
         job.completed_at = datetime.now().isoformat()
+        job.add_log(f"Job completed successfully", "success")
 
     except Exception as e:
         job.status = JobStatus.FAILED
         job.error = str(e)
         job.message = f"Failed: {str(e)}"
         job.completed_at = datetime.now().isoformat()
+        job.add_log(f"Job failed: {str(e)}", "error")
 
 
 def run_single_scout(db, scout_type: ScoutType, config: ScoutConfig) -> tuple[int, int]:
@@ -207,6 +235,7 @@ async def run_analyze_job(job_id: str, config: AnalyzeConfig):
 
     job.status = JobStatus.RUNNING
     job.message = "Starting analyzer..."
+    job.add_log(f"Starting analyzer (mock: {config.mock}, limit: {config.limit})")
 
     try:
         from src.analyzers import run_analyzer
@@ -219,8 +248,15 @@ async def run_analyze_job(job_id: str, config: AnalyzeConfig):
 
         job.progress = 10
         job.message = "Analyzing discoveries..."
+        job.add_log("Processing unanalyzed discoveries...")
 
         result = run_analyzer(db, analyzer_config, use_mock=config.mock)
+
+        job.add_log(f"Processed {result['processed']} discoveries")
+        job.add_log(f"Extracted {result['tools_extracted']} tools", "success")
+        job.add_log(f"Extracted {result['claims_extracted']} claims", "success")
+        if result['errors'] > 0:
+            job.add_log(f"{result['errors']} errors occurred", "warning")
 
         job.progress = 100
         job.status = JobStatus.COMPLETED
@@ -232,12 +268,14 @@ async def run_analyze_job(job_id: str, config: AnalyzeConfig):
             "errors": result['errors'],
         }
         job.completed_at = datetime.now().isoformat()
+        job.add_log("Job completed successfully", "success")
 
     except Exception as e:
         job.status = JobStatus.FAILED
         job.error = str(e)
         job.message = f"Failed: {str(e)}"
         job.completed_at = datetime.now().isoformat()
+        job.add_log(f"Job failed: {str(e)}", "error")
 
 
 async def run_curate_job(job_id: str, config: CurateConfig):
@@ -248,6 +286,7 @@ async def run_curate_job(job_id: str, config: CurateConfig):
 
     job.status = JobStatus.RUNNING
     job.message = "Starting curation..."
+    job.add_log(f"Starting curation (min_score: {config.min_score}, auto_merge: {config.auto_merge})")
 
     try:
         from src.curator import run_curation
@@ -256,12 +295,18 @@ async def run_curate_job(job_id: str, config: CurateConfig):
 
         job.progress = 10
         job.message = "Scoring and ranking tools..."
+        job.add_log("Scoring and ranking tools...")
 
         result = run_curation(
             db,
             min_relevance=config.min_score,
             auto_merge_duplicates=config.auto_merge,
         )
+
+        job.add_log(f"Scored {result.tools_scored} tools (avg: {round(result.avg_score, 2)})")
+        if result.duplicates_merged > 0:
+            job.add_log(f"Merged {result.duplicates_merged} duplicate tools", "info")
+        job.add_log(f"Promoted {result.tools_promoted} tools to review queue", "success")
 
         job.progress = 100
         job.status = JobStatus.COMPLETED
@@ -273,12 +318,14 @@ async def run_curate_job(job_id: str, config: CurateConfig):
             "avg_score": round(result.avg_score, 2),
         }
         job.completed_at = datetime.now().isoformat()
+        job.add_log("Job completed successfully", "success")
 
     except Exception as e:
         job.status = JobStatus.FAILED
         job.error = str(e)
         job.message = f"Failed: {str(e)}"
         job.completed_at = datetime.now().isoformat()
+        job.add_log(f"Job failed: {str(e)}", "error")
 
 
 async def run_update_job(job_id: str):
@@ -289,6 +336,7 @@ async def run_update_job(job_id: str):
 
     job.status = JobStatus.RUNNING
     job.message = "Checking for updates..."
+    job.add_log("Starting update check for approved tools")
 
     try:
         from src.tracker import run_update_check
@@ -297,8 +345,15 @@ async def run_update_job(job_id: str):
 
         job.progress = 10
         job.message = "Fetching tool pages..."
+        job.add_log("Fetching tool pages...")
 
         result = run_update_check(db)
+
+        job.add_log(f"Checked {result['tools_checked']} tools")
+        if result['changes_detected'] > 0:
+            job.add_log(f"Detected {result['changes_detected']} changes", "warning")
+        else:
+            job.add_log("No changes detected", "info")
 
         job.progress = 100
         job.status = JobStatus.COMPLETED
@@ -308,12 +363,14 @@ async def run_update_job(job_id: str):
             "changes_detected": result['changes_detected'],
         }
         job.completed_at = datetime.now().isoformat()
+        job.add_log("Job completed successfully", "success")
 
     except Exception as e:
         job.status = JobStatus.FAILED
         job.error = str(e)
         job.message = f"Failed: {str(e)}"
         job.completed_at = datetime.now().isoformat()
+        job.add_log(f"Job failed: {str(e)}", "error")
 
 
 @router.get("")

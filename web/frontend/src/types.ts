@@ -64,6 +64,12 @@ export interface ScoutTypeInfo {
   requires_api: boolean
 }
 
+export interface LogEntry {
+  timestamp: string
+  level: 'info' | 'warning' | 'error' | 'success'
+  message: string
+}
+
 export interface Job {
   id: string
   type: 'scout' | 'analyze' | 'curate' | 'update'
@@ -75,6 +81,7 @@ export interface Job {
   completed_at: string | null
   error: string | null
   scout_type: ScoutType | null
+  logs: LogEntry[]
 }
 
 export interface ActivityItem {

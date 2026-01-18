@@ -1,5 +1,6 @@
 import { useStats, useJobs, useStartJob } from '../hooks/useApi'
 import { StatCard } from '../components/StatCard'
+import { JobRow } from '../components/JobRow'
 
 export function Dashboard() {
   const { data: stats, isLoading: statsLoading } = useStats()
@@ -124,37 +125,9 @@ export function Dashboard() {
             No recent jobs
           </div>
         ) : (
-          <div className="bg-white rounded-lg border border-gray-200 divide-y divide-gray-100">
+          <div className="bg-white rounded-lg border border-gray-200">
             {recentJobs.map((job) => (
-              <div
-                key={job.id}
-                className="p-4 flex items-center justify-between"
-              >
-                <div className="flex items-center gap-3">
-                  <span
-                    className={`w-2 h-2 rounded-full ${
-                      job.status === 'completed'
-                        ? 'bg-green-500'
-                        : job.status === 'failed'
-                          ? 'bg-red-500'
-                          : 'bg-gray-400'
-                    }`}
-                  />
-                  <span className="font-medium text-gray-900 capitalize">
-                    {job.type}
-                  </span>
-                </div>
-                <div className="flex items-center gap-4">
-                  {job.message && (
-                    <span className="text-sm text-gray-500">{job.message}</span>
-                  )}
-                  <span className="text-sm text-gray-400">
-                    {job.completed_at
-                      ? new Date(job.completed_at).toLocaleTimeString()
-                      : ''}
-                  </span>
-                </div>
-              </div>
+              <JobRow key={job.id} job={job} />
             ))}
           </div>
         )}
