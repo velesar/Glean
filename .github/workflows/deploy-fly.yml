@@ -5,13 +5,8 @@ on:
     branches:
       - main
       - master
+      - claude/add-claude-documentation-Q6Qc8
   workflow_dispatch:
-    inputs:
-      create_volume:
-        description: 'Create volume if not exists'
-        required: false
-        default: 'true'
-        type: boolean
 
 env:
   FLY_APP_NAME: glean-ayusuw
@@ -29,20 +24,11 @@ jobs:
       - name: Setup Fly.io CLI
         uses: superfly/flyctl-actions/setup-flyctl@master
 
-      - name: Check app exists
-        run: |
-          flyctl apps list | grep -q "$FLY_APP_NAME" || {
-            echo "App $FLY_APP_NAME not found. Creating..."
-            flyctl apps create "$FLY_APP_NAME" --org personal
-          }
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-
       - name: Check and create volume
-        if: ${{ github.event.inputs.create_volume != 'false' }}
         run: |
           # Check if volume exists
-          if flyctl volumes list -a "$FLY_APP_NAME" | grep -q "glean_data"; then
+          VOLUMES=$(flyctl volumes list -a "$FLY_APP_NAME" 2>/dev/null || echo "")
+          if echo "$VOLUMES" | grep -q "glean_data"; then
             echo "Volume glean_data already exists"
           else
             echo "Creating volume glean_data..."
@@ -51,6 +37,7 @@ jobs:
               --size 1 \
               --app "$FLY_APP_NAME" \
               --yes
+            echo "Volume created successfully"
           fi
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
@@ -58,11 +45,12 @@ jobs:
       - name: Set secrets if not exists
         run: |
           # Check if GLEAN_SECRET_KEY is set
-          if ! flyctl secrets list -a "$FLY_APP_NAME" | grep -q "GLEAN_SECRET_KEY"; then
+          SECRETS=$(flyctl secrets list -a "$FLY_APP_NAME" 2>/dev/null || echo "")
+          if echo "$SECRETS" | grep -q "GLEAN_SECRET_KEY"; then
+            echo "GLEAN_SECRET_KEY already set"
+          else
             echo "Setting GLEAN_SECRET_KEY..."
             flyctl secrets set GLEAN_SECRET_KEY="$(openssl rand -hex 32)" -a "$FLY_APP_NAME"
-          else
-            echo "GLEAN_SECRET_KEY already set"
           fi
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
