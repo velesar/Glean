@@ -91,6 +91,8 @@ class Migrator:
             raise MigrationError(f"Migration file not found: {migration_path}")
 
         spec = importlib.util.spec_from_file_location(name, migration_path)
+        if spec is None or spec.loader is None:
+            raise MigrationError(f"Failed to load migration spec: {migration_path}")
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
 

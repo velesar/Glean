@@ -25,7 +25,7 @@ class Discovery:
 class Scout(ABC):
     """Abstract base class for scouts."""
 
-    def __init__(self, db: Database, config: dict = None):
+    def __init__(self, db: Database, config: Optional[dict] = None):
         self.db = db
         self.config = config or {}
         self._source_id: Optional[int] = None

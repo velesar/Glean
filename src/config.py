@@ -46,6 +46,7 @@ def load_config(config_path: str | Path | None = None) -> dict[str, Any]:
     """
     config = DEFAULT_CONFIG.copy()
 
+    path: Path | None
     if config_path:
         path = Path(config_path)
     else:

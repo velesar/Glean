@@ -167,19 +167,25 @@ def check_typescript_lint(report: QualityReport) -> None:
     )
 
     try:
-        # ESLint JSON output
-        results = json.loads(stdout) if stdout else []
-        for file_result in results:
-            messages = file_result.get('messages', [])
-            report.typescript_lint_issues += len(messages)
-            for msg in messages[:10]:
-                report.typescript_lint_details.append(
-                    f"{file_result.get('filePath', '')}:{msg.get('line', '')}: "
-                    f"{msg.get('message', '')}"
-                )
+        # ESLint JSON output - find JSON array in output
+        json_start = stdout.find('[') if stdout else -1
+        if json_start >= 0:
+            json_str = stdout[json_start:]
+            results = json.loads(json_str)
+            for file_result in results:
+                messages = file_result.get('messages', [])
+                report.typescript_lint_issues += len(messages)
+                for msg in messages[:10]:
+                    report.typescript_lint_details.append(
+                        f"{file_result.get('filePath', '')}:{msg.get('line', '')}: "
+                        f"{msg.get('message', '')}"
+                    )
+        elif code != 0:
+            # Non-zero exit code means lint errors
+            report.typescript_lint_issues = 1
     except json.JSONDecodeError:
-        # Count from stderr/stdout
-        if "error" in (stdout + stderr).lower():
+        # Fallback: use exit code
+        if code != 0:
             report.typescript_lint_issues = 1
 
 

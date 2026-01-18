@@ -54,7 +54,7 @@ FEATURE_PATTERNS = [
 class UpdateTracker:
     """Tracks updates to approved tools."""
 
-    def __init__(self, db: Database, config: dict = None):
+    def __init__(self, db: Database, config: Optional[dict] = None):
         self.db = db
         self.config = config or {}
         self.client = httpx.Client(
@@ -67,7 +67,7 @@ class UpdateTracker:
 
     def check_tool(self, tool: dict) -> list[DetectedChange]:
         """Check a single tool for updates."""
-        changes = []
+        changes: list[DetectedChange] = []
         url = tool.get('url')
 
         if not url:
@@ -268,7 +268,7 @@ class UpdateTracker:
         self.client.close()
 
 
-def run_update_check(db: Database, config: dict = None) -> dict:
+def run_update_check(db: Database, config: Optional[dict] = None) -> dict:
     """Run update check on all approved tools."""
     tracker = UpdateTracker(db, config)
 

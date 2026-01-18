@@ -9,7 +9,7 @@ Supports multiple search providers:
 3. Demo mode (sample data for testing)
 """
 
-from typing import Optional
+from typing import Any, Optional
 from urllib.parse import urlparse
 
 import httpx
@@ -56,7 +56,7 @@ class WebSearchScout(Scout):
 
     source_name = 'web_search'
 
-    def __init__(self, db: Database, config: dict = None):
+    def __init__(self, db: Database, config: Optional[dict] = None):
         super().__init__(db, config)
         self.search_queries = self.config.get('search_queries', DEFAULT_SEARCH_QUERIES)
         self.results_per_query = self.config.get('results_per_query', 10)
@@ -220,7 +220,7 @@ class WebSearchScout(Scout):
 
     def _get_demo_discoveries(self) -> list[Discovery]:
         """Return sample discoveries for testing."""
-        samples = [
+        samples: list[dict[str, Any]] = [
             {
                 'source_url': 'https://www.techcrunch.com/ai-sales-tools-roundup',
                 'raw_text': '''Top 10 AI Sales Tools for 2026 | TechCrunch
@@ -320,7 +320,7 @@ rates. We tested Lemlist, Instantly, and Woodpecker.''',
         self.client.close()
 
 
-def run_websearch_scout(db: Database, config: dict = None) -> tuple[int, int]:
+def run_websearch_scout(db: Database, config: Optional[dict] = None) -> tuple[int, int]:
     """Convenience function to run the web search scout."""
     scout = WebSearchScout(db, config)
     try:

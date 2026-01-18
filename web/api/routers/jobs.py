@@ -41,13 +41,6 @@ class ScoutType(str, Enum):
     ALL = "all"
 
 
-class LogEntry(BaseModel):
-    """A single log entry for a job."""
-    timestamp: str
-    level: str  # info, warning, error, success
-    message: str
-
-
 class Job(BaseModel):
     """Job model."""
     id: str
@@ -60,15 +53,6 @@ class Job(BaseModel):
     completed_at: Optional[str] = None
     error: Optional[str] = None
     scout_type: Optional[str] = None
-    logs: list[LogEntry] = []
-
-    def add_log(self, message: str, level: str = "info"):
-        """Add a log entry to the job."""
-        self.logs.append(LogEntry(
-            timestamp=datetime.now().isoformat(),
-            level=level,
-            message=message
-        ))
 
 
 class ScoutConfig(BaseModel):
@@ -102,12 +86,13 @@ class CurateConfig(BaseModel):
     auto_merge: bool = True
 
 
-# In-memory job storage (in production, use Redis or database)
-jobs: dict[str, Job] = {}
+# In-memory cache for active jobs (synced with database)
+_job_cache: dict[str, Job] = {}
 
 
-def create_job(job_type: JobType, scout_type: Optional[str] = None) -> Job:
-    """Create a new job."""
+def create_job(job_type: JobType, scout_type: Optional[str] = None,
+               config: Optional[dict] = None, user_id: Optional[int] = None) -> Job:
+    """Create a new job and persist to database."""
     job_id = str(uuid.uuid4())[:8]
     job = Job(
         id=job_id,
@@ -116,19 +101,64 @@ def create_job(job_type: JobType, scout_type: Optional[str] = None) -> Job:
         started_at=datetime.now().isoformat(),
         scout_type=scout_type,
     )
-    jobs[job_id] = job
+
+    # Persist to database
+    db = get_db()
+    db.create_job(job_id, job_type.value, scout_type, config, user_id)
+
+    # Cache for active job tracking
+    _job_cache[job_id] = job
     return job
+
+
+def get_job_from_db(job_id: str) -> Optional[Job]:
+    """Get job from cache or database."""
+    # Check cache first for active jobs
+    if job_id in _job_cache:
+        return _job_cache[job_id]
+
+    # Load from database
+    db = get_db()
+    job_data = db.get_job(job_id)
+    if job_data:
+        return Job(
+            id=job_data['id'],
+            type=JobType(job_data['type']),
+            status=JobStatus(job_data['status']),
+            progress=job_data['progress'] or 0,
+            message=job_data['message'] or "",
+            result=job_data['result'],
+            started_at=job_data['started_at'],
+            completed_at=job_data['completed_at'],
+            error=job_data['error'],
+            scout_type=job_data['scout_type'],
+        )
+    return None
+
+
+def sync_job_to_db(job: Job) -> None:
+    """Sync job state to database."""
+    db = get_db()
+    db.update_job(
+        job.id,
+        status=job.status.value,
+        progress=job.progress,
+        message=job.message,
+        result=job.result,
+        error=job.error,
+        completed=job.status in (JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED)
+    )
 
 
 async def run_scout_job(job_id: str, config: ScoutConfig):
     """Run scout job in background."""
-    job = jobs.get(job_id)
+    job = _job_cache.get(job_id)
     if not job:
         return
 
     job.status = JobStatus.RUNNING
+    sync_job_to_db(job)
     scout_type = config.scout_type
-    job.add_log(f"Starting scout job (type: {scout_type.value}, demo: {config.demo})")
 
     try:
         db = get_db()
@@ -144,42 +174,38 @@ async def run_scout_job(job_id: str, config: ScoutConfig):
                 ScoutType.WEB,
                 ScoutType.RSS,
             ]
-            job.add_log(f"Running all {len(scouts_to_run)} scouts")
-
             for i, st in enumerate(scouts_to_run):
                 job.message = f"Running {st.value} scout..."
                 job.progress = int((i / len(scouts_to_run)) * 90)
-                job.add_log(f"Starting {st.value} scout...")
+                sync_job_to_db(job)
 
-                try:
-                    saved, skipped = run_single_scout(db, st, config)
-                    total_saved += saved
-                    total_skipped += skipped
-                    job.add_log(f"{st.value}: {saved} saved, {skipped} skipped", "success")
-                except Exception as e:
-                    job.add_log(f"{st.value}: Failed - {str(e)}", "error")
+                saved, skipped = run_single_scout(db, st, config)
+                total_saved += saved
+                total_skipped += skipped
 
         else:
             job.message = f"Running {scout_type.value} scout..."
             job.progress = 10
-            job.add_log(f"Running {scout_type.value} scout...")
+            sync_job_to_db(job)
 
             total_saved, total_skipped = run_single_scout(db, scout_type, config)
-            job.add_log(f"Found {total_saved} discoveries, {total_skipped} duplicates", "success")
 
         job.progress = 100
         job.status = JobStatus.COMPLETED
         job.message = f"Completed: {total_saved} discoveries, {total_skipped} duplicates"
         job.result = {"saved": total_saved, "skipped": total_skipped}
         job.completed_at = datetime.now().isoformat()
-        job.add_log(f"Job completed successfully", "success")
+        sync_job_to_db(job)
 
     except Exception as e:
         job.status = JobStatus.FAILED
         job.error = str(e)
         job.message = f"Failed: {str(e)}"
         job.completed_at = datetime.now().isoformat()
-        job.add_log(f"Job failed: {str(e)}", "error")
+        sync_job_to_db(job)
+    finally:
+        # Remove from cache when done
+        _job_cache.pop(job_id, None)
 
 
 def run_single_scout(db, scout_type: ScoutType, config: ScoutConfig) -> tuple[int, int]:
@@ -229,13 +255,13 @@ def run_single_scout(db, scout_type: ScoutType, config: ScoutConfig) -> tuple[in
 
 async def run_analyze_job(job_id: str, config: AnalyzeConfig):
     """Run analyzer job in background."""
-    job = jobs.get(job_id)
+    job = _job_cache.get(job_id)
     if not job:
         return
 
     job.status = JobStatus.RUNNING
     job.message = "Starting analyzer..."
-    job.add_log(f"Starting analyzer (mock: {config.mock}, limit: {config.limit})")
+    sync_job_to_db(job)
 
     try:
         from src.analyzers import run_analyzer
@@ -248,15 +274,9 @@ async def run_analyze_job(job_id: str, config: AnalyzeConfig):
 
         job.progress = 10
         job.message = "Analyzing discoveries..."
-        job.add_log("Processing unanalyzed discoveries...")
+        sync_job_to_db(job)
 
         result = run_analyzer(db, analyzer_config, use_mock=config.mock)
-
-        job.add_log(f"Processed {result['processed']} discoveries")
-        job.add_log(f"Extracted {result['tools_extracted']} tools", "success")
-        job.add_log(f"Extracted {result['claims_extracted']} claims", "success")
-        if result['errors'] > 0:
-            job.add_log(f"{result['errors']} errors occurred", "warning")
 
         job.progress = 100
         job.status = JobStatus.COMPLETED
@@ -268,25 +288,27 @@ async def run_analyze_job(job_id: str, config: AnalyzeConfig):
             "errors": result['errors'],
         }
         job.completed_at = datetime.now().isoformat()
-        job.add_log("Job completed successfully", "success")
+        sync_job_to_db(job)
 
     except Exception as e:
         job.status = JobStatus.FAILED
         job.error = str(e)
         job.message = f"Failed: {str(e)}"
         job.completed_at = datetime.now().isoformat()
-        job.add_log(f"Job failed: {str(e)}", "error")
+        sync_job_to_db(job)
+    finally:
+        _job_cache.pop(job_id, None)
 
 
 async def run_curate_job(job_id: str, config: CurateConfig):
     """Run curation job in background."""
-    job = jobs.get(job_id)
+    job = _job_cache.get(job_id)
     if not job:
         return
 
     job.status = JobStatus.RUNNING
     job.message = "Starting curation..."
-    job.add_log(f"Starting curation (min_score: {config.min_score}, auto_merge: {config.auto_merge})")
+    sync_job_to_db(job)
 
     try:
         from src.curator import run_curation
@@ -295,18 +317,13 @@ async def run_curate_job(job_id: str, config: CurateConfig):
 
         job.progress = 10
         job.message = "Scoring and ranking tools..."
-        job.add_log("Scoring and ranking tools...")
+        sync_job_to_db(job)
 
         result = run_curation(
             db,
             min_relevance=config.min_score,
             auto_merge_duplicates=config.auto_merge,
         )
-
-        job.add_log(f"Scored {result.tools_scored} tools (avg: {round(result.avg_score, 2)})")
-        if result.duplicates_merged > 0:
-            job.add_log(f"Merged {result.duplicates_merged} duplicate tools", "info")
-        job.add_log(f"Promoted {result.tools_promoted} tools to review queue", "success")
 
         job.progress = 100
         job.status = JobStatus.COMPLETED
@@ -318,25 +335,27 @@ async def run_curate_job(job_id: str, config: CurateConfig):
             "avg_score": round(result.avg_score, 2),
         }
         job.completed_at = datetime.now().isoformat()
-        job.add_log("Job completed successfully", "success")
+        sync_job_to_db(job)
 
     except Exception as e:
         job.status = JobStatus.FAILED
         job.error = str(e)
         job.message = f"Failed: {str(e)}"
         job.completed_at = datetime.now().isoformat()
-        job.add_log(f"Job failed: {str(e)}", "error")
+        sync_job_to_db(job)
+    finally:
+        _job_cache.pop(job_id, None)
 
 
 async def run_update_job(job_id: str):
     """Run update check job in background."""
-    job = jobs.get(job_id)
+    job = _job_cache.get(job_id)
     if not job:
         return
 
     job.status = JobStatus.RUNNING
     job.message = "Checking for updates..."
-    job.add_log("Starting update check for approved tools")
+    sync_job_to_db(job)
 
     try:
         from src.tracker import run_update_check
@@ -345,15 +364,9 @@ async def run_update_job(job_id: str):
 
         job.progress = 10
         job.message = "Fetching tool pages..."
-        job.add_log("Fetching tool pages...")
+        sync_job_to_db(job)
 
         result = run_update_check(db)
-
-        job.add_log(f"Checked {result['tools_checked']} tools")
-        if result['changes_detected'] > 0:
-            job.add_log(f"Detected {result['changes_detected']} changes", "warning")
-        else:
-            job.add_log("No changes detected", "info")
 
         job.progress = 100
         job.status = JobStatus.COMPLETED
@@ -363,26 +376,46 @@ async def run_update_job(job_id: str):
             "changes_detected": result['changes_detected'],
         }
         job.completed_at = datetime.now().isoformat()
-        job.add_log("Job completed successfully", "success")
+        sync_job_to_db(job)
 
     except Exception as e:
         job.status = JobStatus.FAILED
         job.error = str(e)
         job.message = f"Failed: {str(e)}"
         job.completed_at = datetime.now().isoformat()
-        job.add_log(f"Job failed: {str(e)}", "error")
+        sync_job_to_db(job)
+    finally:
+        _job_cache.pop(job_id, None)
 
 
 @router.get("")
-async def list_jobs(limit: int = 20, current_user: dict = Depends(get_current_user)):
-    """List recent jobs."""
-    sorted_jobs = sorted(
-        jobs.values(),
-        key=lambda j: j.started_at or "",
-        reverse=True
-    )[:limit]
+async def list_jobs(
+    limit: int = 20,
+    status: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """List recent jobs from database."""
+    db = get_db()
+    job_list = db.list_jobs(limit=limit, status=status)
 
-    return {"jobs": [j.model_dump() for j in sorted_jobs]}
+    # Merge with active cache jobs (in case db hasn't synced yet)
+    result = []
+    seen_ids = set()
+
+    # Add active jobs from cache first (most recent state)
+    for job in _job_cache.values():
+        result.append(job.model_dump())
+        seen_ids.add(job.id)
+
+    # Add database jobs not in cache
+    for job_data in job_list:
+        if job_data['id'] not in seen_ids:
+            result.append(job_data)
+
+    # Sort by started_at
+    result.sort(key=lambda j: j.get('started_at') or '', reverse=True)
+
+    return {"jobs": result[:limit]}
 
 
 @router.get("/scout-types")
@@ -439,7 +472,7 @@ async def get_scout_types(current_user: dict = Depends(get_current_user)):
 @router.get("/{job_id}")
 async def get_job(job_id: str, current_user: dict = Depends(get_current_user)):
     """Get job status."""
-    job = jobs.get(job_id)
+    job = get_job_from_db(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     return job.model_dump()
@@ -495,13 +528,30 @@ async def start_update(
 @router.delete("/{job_id}")
 async def cancel_job(job_id: str, current_user: dict = Depends(get_current_user)):
     """Cancel a running job."""
-    job = jobs.get(job_id)
+    # Check cache first for active jobs
+    job = _job_cache.get(job_id)
+    if job:
+        if job.status == JobStatus.RUNNING:
+            job.status = JobStatus.CANCELLED
+            job.message = "Cancelled by user"
+            job.completed_at = datetime.now().isoformat()
+            sync_job_to_db(job)
+            _job_cache.pop(job_id, None)
+        return {"success": True, "status": job.status.value}
+
+    # Check database
+    job = get_job_from_db(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
     if job.status == JobStatus.RUNNING:
+        db = get_db()
+        db.update_job(
+            job_id,
+            status="cancelled",
+            message="Cancelled by user",
+            completed=True
+        )
         job.status = JobStatus.CANCELLED
-        job.message = "Cancelled by user"
-        job.completed_at = datetime.now().isoformat()
 
-    return {"success": True, "status": job.status}
+    return {"success": True, "status": job.status.value}
