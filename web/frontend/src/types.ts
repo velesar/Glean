@@ -38,11 +38,10 @@ export interface Tool {
   category: string | null
   status: 'inbox' | 'analyzing' | 'review' | 'approved' | 'rejected'
   relevance_score: number | null
-  first_seen: string
-  last_updated: string
   reviewed_at: string | null
   rejection_reason: string | null
   created_at: string
+  updated_at: string
 }
 
 export interface ToolDetail extends Tool {
