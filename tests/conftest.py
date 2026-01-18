@@ -19,11 +19,15 @@ def runner():
 
 @pytest.fixture
 def temp_db():
-    """Create a temporary database for testing."""
+    """Create a temporary database for testing.
+
+    Uses check_same_thread=False to allow use with FastAPI TestClient
+    which runs in a different thread.
+    """
     with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
         db_path = f.name
 
-    db = Database(db_path)
+    db = Database(db_path, check_same_thread=False)
     db.init_schema()
 
     yield db

@@ -4,6 +4,8 @@ Authentication utilities
 Password hashing and JWT token management.
 """
 
+import base64
+import hashlib
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -57,14 +59,23 @@ class UserResponse(BaseModel):
     last_login: Optional[str] = None
 
 
+def _prepare_password(password: str) -> str:
+    """Pre-hash password if longer than bcrypt's 72-byte limit."""
+    password_bytes = password.encode("utf-8")
+    if len(password_bytes) > 72:
+        # SHA-256 hash and base64 encode to stay under 72 bytes
+        return base64.b64encode(hashlib.sha256(password_bytes).digest()).decode("ascii")
+    return password
+
+
 def hash_password(password: str) -> str:
     """Hash a password using bcrypt."""
-    return pwd_context.hash(password)
+    return pwd_context.hash(_prepare_password(password))
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against its hash."""
-    return pwd_context.verify(plain_password, hashed_password)
+    return pwd_context.verify(_prepare_password(plain_password), hashed_password)
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
@@ -82,10 +93,11 @@ def decode_access_token(token: str) -> Optional[TokenData]:
     """Decode and validate a JWT access token."""
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: int = payload.get("sub")
+        sub = payload.get("sub")
         username: str = payload.get("username")
-        if user_id is None:
+        if sub is None:
             return None
+        user_id = int(sub)  # Convert string back to int
         return TokenData(user_id=user_id, username=username)
     except JWTError:
         return None

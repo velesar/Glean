@@ -144,9 +144,9 @@ async def login(credentials: UserLogin, db: Database = Depends(get_db)):
     # Update last login
     db.update_last_login(user["id"])
 
-    # Create token
+    # Create token (sub must be a string per JWT spec)
     access_token = create_access_token(
-        data={"sub": user["id"], "username": user["username"]}
+        data={"sub": str(user["id"]), "username": user["username"]}
     )
 
     return Token(access_token=access_token)

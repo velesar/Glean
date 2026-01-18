@@ -120,15 +120,19 @@ CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 class Database:
     """SQLite database wrapper for Glean."""
 
-    def __init__(self, db_path: str = "db/glean.db"):
+    def __init__(self, db_path: str = "db/glean.db", check_same_thread: bool = True):
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self.conn: Optional[sqlite3.Connection] = None
+        self._check_same_thread = check_same_thread
 
     def connect(self) -> sqlite3.Connection:
         """Connect to the database."""
         if self.conn is None:
-            self.conn = sqlite3.connect(self.db_path)
+            self.conn = sqlite3.connect(
+                self.db_path,
+                check_same_thread=self._check_same_thread
+            )
             self.conn.row_factory = sqlite3.Row
             self.conn.execute("PRAGMA foreign_keys = ON")
         return self.conn
