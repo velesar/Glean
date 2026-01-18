@@ -176,6 +176,10 @@ class ProductHuntScout(Scout):
 
         posted_after = (datetime.utcnow() - timedelta(days=self.days_back)).isoformat() + 'Z'
 
+        # Fetch in batches to stay under GraphQL complexity limit (500k)
+        # Each post with nested fields costs ~16k complexity, so fetch 30 at a time
+        batch_size = 30
+
         try:
             response = self.client.post(
                 self.api_url,
@@ -183,7 +187,7 @@ class ProductHuntScout(Scout):
                 json={
                     'query': query,
                     'variables': {
-                        'first': 100,
+                        'first': batch_size,
                         'postedAfter': posted_after,
                     }
                 }
